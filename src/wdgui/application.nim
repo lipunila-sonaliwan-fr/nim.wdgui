@@ -76,8 +76,8 @@ proc dispatchLoop() {.thread.} =
 var spawned: seq[ptr Thread[Event]]
 
 proc spawnNow(e: Event) {.nimcall, gcsafe.} =
-  ## Runs an event on a new thread immediately (windows with `alwaysThreaded`, e.g. dialogs):
-  ## they keep working even while the dispatcher is blocked by a handler waiting for them.
+  # Runs an event on a new thread immediately (windows with `alwaysThreaded`, e.g. dialogs):
+  # they keep working even while the dispatcher is blocked by a handler waiting for them.
   guarded:
     reap(spawned, false)
     let th = cast[ptr Thread[Event]](allocShared0(sizeof(Thread[Event])))
@@ -97,7 +97,7 @@ proc topModal(): Window =
     if w.isModal and w.opened and not w.closeRequested: return w
 
 proc blocked(f: Window, bringToFront = false): bool =
-  ## True when a modal window other than `f` is open (it then gets the focus back).
+  # True when a modal window other than `f` is open (it then gets the focus back).
   let m = topModal()
   result = m != nil and m != f
   if result and bringToFront and m.sdlWin != nil: discard SDL_RaiseWindow(m.sdlWin)
@@ -366,7 +366,8 @@ proc handleEvent(e: var SDL_Event) =
         return
       if f.popup.onKey(ek): return
     var consumed = false
-    if ke.key == SDLK_TAB and (ke.modifiers and KMOD_CTRL) == 0:
+    if ke.key == SDLK_TAB and (ke.modifiers and KMOD_CTRL) == 0 and
+       not (f.focusedControl != nil and f.focusedControl.isActive and f.focusedControl.acceptsTab):
       focusNext(f, if (ke.modifiers and KMOD_SHIFT) != 0: -1 else: 1)
       consumed = true
     elif f.focusedControl != nil and f.focusedControl.isActive:

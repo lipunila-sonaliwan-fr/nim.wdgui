@@ -6,7 +6,7 @@ import ../sdl3, colors_themes, drawing
 export colors_themes, drawing
 
 type
-  ControlId* = distinct int   ## id of a control (or of a window)
+  ControlId* = distinct int      # id of a control (or of a window)
 
 proc `==`*(a, b: ControlId): bool {.borrow.}
 proc `$`*(a: ControlId): string = "#" & $int(a)
@@ -40,10 +40,10 @@ type
     key*: uint32             # SDL key code (SDLK_*).
     modifiers*: uint16       # KMOD_*.
     isRepeat*: bool
-    text*: string         ## typed text, menu item, tree path…
-    index*: int           ## affected row / option / tab (1-based, like WINDEV)
-    column*: int          ## affected column for grids (1-based, 0 = none)
-    dx*, dy*: float        ## wheel
+    text*: string                # typed text, menu item, tree path...
+    index*: int                  # affected row / option / tab (1-based).
+    column*: int                 # affected column for grids (1-based, 0 = none).
+    dx*, dy*: float              # wheel.
     timestamp*: uint64
     stopped: bool
 
@@ -125,7 +125,7 @@ type
     hoverSince*: uint64
     tooltipShown*: bool
     caretVisible*: bool
-    animating*: bool          # set during draw by a control that needs another frame (fades…)
+    animating*: bool          # set during draw by a control that needs another frame (fades...)
     resizable*: bool          # the user may resize the window (default true)
     isModal*: bool            # modal window: blocks input to every other window while open
     modalFor*: Window         # owner of a modal window (it is centered on it)
@@ -139,9 +139,9 @@ var
   wakeEvent*: uint32
   sdlReady*: bool
   lockDepth* {.threadvar.}: int
-  activeWindow*: Window          # last window that received the focus
-  uiThreadId*: int               # id of the thread running the UI loop (0 = not running)
-  directSpawn*: proc (e: Event) {.nimcall, gcsafe.}  ## set by the UI loop (see alwaysThreaded)
+  activeWindow*: Window          # last window that received the focus.
+  uiThreadId*: int               # id of the thread running the UI loop (0 = not running).
+  directSpawn*: proc (e: Event) {.nimcall, gcsafe.}               # set by the UI loop (see alwaysThreaded).
 
 initLock(guiLock)
 open(eventQueue)
@@ -235,7 +235,7 @@ proc attach*(c: Control, f: Window) =
 proc emit*(c: Control, kind: EventKind, index = 0, text = "", column = 0,
            x = 0.0, y = 0.0, button = mbNone, key = 0'u32, mods = 0'u16,
            dx = 0.0, dy = 0.0, isRepeat = false) =
-  ## Pushes an event onto the queue; the dispatcher will pop it.
+  # Pushes an event onto the queue; the dispatcher will pop it.
   if c == nil or c.win == nil or int(c.id) <= 0: return
   var e = Event(window: c.win.id, id: c.id, current: c.id, kind: kind, index: index, column: column,
                     text: text, x: x, y: y, button: button, key: key,
@@ -297,6 +297,8 @@ method onWheel*(c: Control, dx, dy: float): bool {.base.} = false  # true = cons
 method onFocus*(c: Control, gained: bool) {.base.} = discard
 
 method acceptsText*(c: Control): bool {.base.} = false
+
+method acceptsTab*(c: Control): bool {.base.} = false  # true: Tab goes to onKey instead of moving the focus
 
 method mouseCursor*(c: Control, x, y: float): int {.base.} = SDL_SYSTEM_CURSOR_DEFAULT
 
@@ -619,7 +621,7 @@ proc newSupercontrol*(layout = lkHorizontal, spacing = -1.0): Container =
 proc newWindow*(title: string, width = 800, height = 600,
                       dispatch: DispatchProc = nil, theme = themeNative(),
                       layout = lkVertical): Window =
-  ## Creates a window (realized on screen by the UI loop, from any thread).
+  # Creates a window (realized on screen by the UI loop, from any thread).
   result = Window(title: title, width: width, height: height, dispatch: dispatch, theme: theme,
                   resizable: true)
   initControl(result, title)

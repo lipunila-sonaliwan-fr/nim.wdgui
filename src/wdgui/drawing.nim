@@ -54,7 +54,7 @@ proc applyClip(d: Drawing, s = 1.0) =
     return
   let c = d.clips[^1]
   if c.w < 0.5 or c.h < 0.5:
-    # Empty clip. Some SDL back ends (Metal, GPU…) turn a degenerate or off-screen
+    # Empty clip. Some SDL back ends (Metal, GPU... turn a degenerate or off-screen
     # scissor rectangle into "no clipping at all", so we never send one: we draw nothing.
     d.clipEmpty = true
     var r = SDL_Rect(x: 0, y: 0, w: 1, h: 1)
@@ -65,11 +65,11 @@ proc applyClip(d: Drawing, s = 1.0) =
   discard SDL_SetRenderClipRect(d.ren, addr r)
 
 proc clipRect*(d: Drawing): Rect =
-  ## Current clip rectangle (a huge one when there is no clip).
+  # Current clip rectangle (a huge one when there is no clip).
   if d.clips.len > 0: d.clips[^1] else: Rect(x: -1e9, y: -1e9, w: 2e9, h: 2e9)
 
 proc isClippedOut*(d: Drawing, r: Rect): bool =
-  ## True when nothing of `r` can be visible with the current clip.
+  # True when nothing of `r` can be visible with the current clip.
   if d.clipEmpty: return true
   let i = intersect(d.clipRect, r)
   i.w <= 0 or i.h <= 0

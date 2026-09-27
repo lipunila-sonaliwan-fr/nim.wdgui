@@ -532,7 +532,7 @@ proc kanbanSelect*(id: ControlId): tuple[list, card: int] =
 # Menu
 
 proc menuAdd*(id: ControlId, path: string) =
-  ## path: "File" & TreeSep & "Open"; option "-" = separator.
+  # path: "File" & TreeSep & "Open"; option "-" = separator.
   withControl(id, MenuBar, m): m.addMenuPath(path)
 
 # TreeMap / Gantt / Calendar
@@ -570,6 +570,6 @@ proc calendarShow*(id: ControlId, year, month: int) =
 proc `placeholder=`*(id: ControlId, v: string) =
   withControl(id, Edit, s): s.placeholder = v
 
-proc editSelection*(id: ControlId): tuple[start, finished: int] =
+proc editSelection*(id: ControlId): tuple[start, stop: int] =
   # Selection (UTF-8 byte positions, 0-based).
   readControl(id, Edit, s): result = (min(s.cursor, s.anchor), max(s.cursor, s.anchor))

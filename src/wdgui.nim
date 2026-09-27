@@ -1,5 +1,5 @@
 # CC BY-NC-SA 4.0 - jean-marc "jihem" quere 2026
-# wdgui - Nim GUI library on top of SDL3 modelled on WINDEV controls and API.
+# wdgui - Nim GUI library on top of SDL3 modelled on WD-style controls and API.
 #                _              _
 #   __      ____| |_ __ _ _   _(_)
 #   \ \ /\ / / _` (_) _` | | | | |

@@ -2,7 +2,7 @@
 # Grid control: display and entry of tabular data.
 #
 # * Rows, columns, header and optional column footers (sum, average, min, max, count).
-# * Each column is a sub-control with its own ControlId (caption, visible, width, state…).
+# * Each column is a sub-control with its own ControlId (caption, visible, width, state...).
 # * Read-only or editable at grid, column, row or cell level.
 # * Single or multiple row selection.
 # * Column kinds: text, number, date ("YYYYMMDD"), image (file path), button, combo, check.
@@ -15,7 +15,7 @@
 # Events emitted on the grid (ev.index = row, ev.column = column, both 1-based):
 # evSelection (current row changed), evChange (cell modified by the user; index 0 = rows
 # inserted / deleted), evValidate (a modified row is left or Enter is pressed), and the
-# generic evClick / evDoubleClick / evRightClick… which also carry index and column.
+# generic evClick / evDoubleClick / evRightClick... which also carry index and column.
 import std/[strutils, algorithm, sequtils, json, tables, math]
 import ../sdl3, core, controls_basic, controls_lists
 
@@ -1039,7 +1039,7 @@ proc readText(path: string, s: var string): bool =
     result = false
 
 # id-based API (thread-safe).
-# Rows and columns are 1-based, as in WINDEV. Every column-taking function also exists
+# Rows and columns are 1-based. Every column-taking function also exists
 # with the column name (string) instead of its index.
 
 proc gridColumnIndex*(id: ControlId, name: string): int =

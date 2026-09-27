@@ -1215,7 +1215,7 @@ proc newTab*(): Tab =
   result.focusable = true
 
 proc addPage*(o: Tab, title: string, layout = lkVertical, columns = 2): Container =
-  ## Adds a pane (page): a container whose caption is the tab title.
+  # Adds a pane (page): a container whose caption is the tab title.
   result = newContainer(layout, 0, -1, columns)
   result.caption = title
   discard o.addChild(result)

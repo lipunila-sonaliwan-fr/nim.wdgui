@@ -108,7 +108,7 @@ type
   ListBase* = ref object of Control
     elements*: seq[string]
     selections*: seq[bool]
-    current*: int            ## 0-based, -1 = none.
+    current*: int                # 0-based, -1 = none.
     multiSelection*: bool
 
 proc addItem*(l: ListBase, s: string): int =
@@ -344,7 +344,7 @@ type
     multiSelection*: bool
     scroll*: int
     scrollX*: float
-    sortColumn*: int       ## -1 = not sorted
+    sortColumn*: int             # -1 = not sorted
     sortAscending*: bool
     striped*: bool
     resizeCol: int

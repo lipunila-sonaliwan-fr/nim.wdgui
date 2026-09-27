@@ -8,7 +8,7 @@ import ../src/wdgui
 
 type
   RoundButton* = ref object of Button
-    counter*: int     ## added behaviour: counts clicks.
+    counter*: int                # added behaviour: counts clicks.
 
 proc newRoundButton(caption: string): RoundButton =
   result = RoundButton()

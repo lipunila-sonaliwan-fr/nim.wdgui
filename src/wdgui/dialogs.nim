@@ -2,7 +2,7 @@
 # Modal dialog boxes. Each one opens in its own dialog window, centered on the active
 # window, and captures the focus until it is closed (the other windows ignore input).
 #
-# They are called like WINDEV's Info / YesNo / Input: the call BLOCKS the calling thread
+# They are called like WD-style's Info / YesNo / Input: the call BLOCKS the calling thread
 # until the user closes the box, then returns which button was pressed. Call them from a
 # window event handler (which runs on its own thread) or from any thread other than the
 # UI thread; the interface keeps running while you wait.
@@ -543,7 +543,7 @@ type
   PageSettings* = object
     paper*: PaperSize
     orientation*: Orientation
-    marginLeft*, marginTop*, marginRight*, marginBottom*: float   ## millimetres
+    marginLeft*, marginTop*, marginRight*, marginBottom*: float   # millimetres.
 
 proc defaultPrintSettings*(): PrintSettings =
   PrintSettings(copies: 1, allPages: true, fromPage: 1, toPage: 1, collate: true, color: true)
@@ -638,7 +638,7 @@ proc printDialog*(settings: var PrintSettings, title = "Print"): DialogResult =
 type
   PagePreview* = ref object of Control
     paperW*, paperH*: float
-    margins*: array[4, float]   ## left, top, right, bottom (mm)
+    margins*: array[4, float]    # left, top, right, bottom (mm).
 
 method preferredSize*(c: PagePreview, d: Drawing, t: Theme): tuple[w, h: float] = (190.0, 230.0)
 
