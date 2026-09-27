@@ -1,6 +1,6 @@
 # CC BY-NC-SA 4.0 - jean-marc "jihem" quere 2026
 # Building custom controls by subclassing.
-#   nim c -r --threads:on --mm:atomicArc examples/custom_control.nim
+#   nim c -r --threads:on --mm:atomicArc examples/custom_demo.nim
 import std/strutils
 import ../src/wdgui
 

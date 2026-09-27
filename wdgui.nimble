@@ -9,5 +9,8 @@ requires "nim >= 2.0.0"
 task demo, "Build and run the full demo":
   exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/demo.nim"
 
+task grid, "Build and run the grid example":
+  exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/grid_demo.nim"
+
 task custom, "Build and run the custom-control example":
-  exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/custom_control.nim"
+  exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/custom_demo.nim"

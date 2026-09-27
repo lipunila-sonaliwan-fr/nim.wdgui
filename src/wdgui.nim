@@ -13,9 +13,9 @@
 #   runApplication()
 #
 # Build: nim c --threads:on --mm:atomicArc [-d:sdlttf] [-d:sdlimage] myprog.nim
-import wdgui/[core, controls_basic, controls_lists, controls_charts, application, api]
+import wdgui/[core, controls_basic, controls_lists, controls_charts, controls_grid, application, api]
 import sdl3
-export core, controls_basic, controls_lists, controls_charts, application, api
+export core, controls_basic, controls_lists, controls_charts, controls_grid, application, api
 
 # Keyboard constants that are handy inside event handlers.
 export SDLK_RETURN, SDLK_ESCAPE, SDLK_TAB, SDLK_SPACE, SDLK_BACKSPACE, SDLK_DELETE,

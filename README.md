@@ -64,8 +64,9 @@ src/wdgui/controls_lists.nim     list-type controls and popups
 src/wdgui/controls_charts.nim    chart, calendar, kanban, treemap, gantt
 src/wdgui/application.nim        UI loop and threaded dispatcher
 src/wdgui/api.nim                id-based WD-style API
-examples/demo.nim                tour of every control
-examples/custom_control.nim      subclassing example
+examples/demo.nim                tour of the main control
+examples/custom_demo.nim         subclassing example
+examples/grid_demo.nim           **new** grid control
 ```
 
 ## Known limitations

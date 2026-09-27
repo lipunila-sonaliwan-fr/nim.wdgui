@@ -260,8 +260,9 @@ proc handleEvent(e: var SDL_Event) =
     f.capturedControl = c
     f.pressedOn[b] = c
     if b == mbLeft: c.pressed = true
+    let hi = c.hitInfo(x, y)
     c.onMouse(MouseEvent(action: maPress, x: x, y: y, button: b, clicks: int(be.clicks), mods: mods))
-    emit(c, evButtonDown, x = x, y = y, button = b, mods = mods)
+    emit(c, evButtonDown, x = x, y = y, button = b, mods = mods, index = hi.index, column = hi.column)
   of SDL_EVENT_MOUSE_BUTTON_UP:
     let be = cast[ptr SDL_MouseButtonEvent](addr e)
     let f = windowFromSdl(be.windowID)
@@ -279,8 +280,9 @@ proc handleEvent(e: var SDL_Event) =
     if c == nil: return
     c.pressed = false
     let under = controlAt(f.root, x, y)
+    let hi = c.hitInfo(x, y)
     c.onMouse(MouseEvent(action: maRelease, x: x, y: y, button: b, clicks: int(be.clicks), mods: mods))
-    emit(c, evButtonUp, x = x, y = y, button = b, mods = mods)
+    emit(c, evButtonUp, x = x, y = y, button = b, mods = mods, index = hi.index, column = hi.column)
     if under == c and f.pressedOn[b] == c and c.isActive:
       let isDouble = be.clicks >= 2
       let kind = case b
@@ -288,7 +290,8 @@ proc handleEvent(e: var SDL_Event) =
                    of mbRight: (if isDouble: evRightDoubleClick else: evRightClick)
                    of mbMiddle: (if isDouble: evMiddleDoubleClick else: evMiddleClick)
                    of mbNone: evNone
-      if kind != evNone: emit(c, kind, x = x, y = y, button = b, mods = mods)
+      if kind != evNone:
+        emit(c, kind, x = x, y = y, button = b, mods = mods, index = hi.index, column = hi.column)
     f.pressedOn[b] = nil
   of SDL_EVENT_MOUSE_WHEEL:
     let we = cast[ptr SDL_MouseWheelEvent](addr e)

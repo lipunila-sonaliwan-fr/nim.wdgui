@@ -22,7 +22,7 @@ type
     evWheel = "Wheel", evKeyDown = "KeyDown", evKeyUp = "KeyUp",
     evTextInput = "TextInput", evFocusGained = "FocusGained", evFocusLost = "FocusLost",
     evChange = "Change", evSelection = "Selection",
-    evExpand = "Expand", evCollapse = "Collapse",
+    evExpand = "Expand", evCollapse = "Collapse", evValidate = "Validate",
     evWindowOpen = "WindowOpen", evWindowClose = "WindowClose",
     evWindowResize = "WindowResize", evWindowActivate = "WindowActivate",
     evWindowDeactivate = "WindowDeactivate"
@@ -40,9 +40,10 @@ type
     key*: uint32             # SDL key code (SDLK_*).
     modifiers*: uint16       # KMOD_*.
     isRepeat*: bool
-    text*: string            # typed text, menu item, tree path...
-    index*: int              # affected row / option / tab ( 1-based: my choice; if it doesn't suit you, fork it. :-P ).
-    dx*, dy*: float          # wheel.
+    text*: string         ## typed text, menu item, tree path…
+    index*: int           ## affected row / option / tab (1-based, like WINDEV)
+    column*: int          ## affected column for grids (1-based, 0 = none)
+    dx*, dy*: float        ## wheel
     timestamp*: uint64
     stopped: bool
 
@@ -209,6 +210,9 @@ proc initControl*(c: Control, caption = "") =
   c.state = csActive
   c.stretch = true
 
+# Called when the control is attached to a window (lets composite controls attach sub-controls).
+method onAttach*(c: Control, w: Window) {.base.} = discard
+
 proc attach*(c: Control, f: Window) =
   # Registers the control (and its descendants) and sets its window.
   {.cast(gcsafe).}:
@@ -216,15 +220,16 @@ proc attach*(c: Control, f: Window) =
       c.id = ControlId(registry.len)
       registry.add c
   c.win = f
+  c.onAttach(f)
   if c of Container:
     for e in Container(c).children: attach(e, f)
 
-proc emit*(c: Control, kind: EventKind, index = 0, text = "",
+proc emit*(c: Control, kind: EventKind, index = 0, text = "", column = 0,
            x = 0.0, y = 0.0, button = mbNone, key = 0'u32, mods = 0'u16,
            dx = 0.0, dy = 0.0, isRepeat = false) =
-  # Pushes an event onto the queue; the dispatcher will pop it.
-  if c == nil or c.win == nil: return
-  var e = Event(window: c.win.id, id: c.id, current: c.id, kind: kind, index: index,
+  ## Pushes an event onto the queue; the dispatcher will pop it.
+  if c == nil or c.win == nil or int(c.id) <= 0: return
+  var e = Event(window: c.win.id, id: c.id, current: c.id, kind: kind, index: index, column: column,
                     text: text, x: x, y: y, button: button, key: key,
                     modifiers: mods, dx: dx, dy: dy, isRepeat: isRepeat)
   {.cast(gcsafe).}:
@@ -274,11 +279,11 @@ method preferredSize*(c: Control, d: Drawing, t: Theme): tuple[w, h: float] {.ba
 
 method onMouse*(c: Control, e: MouseEvent) {.base.} = discard
 
-method onKey*(c: Control, e: KeyEvent): bool {.base.} = false  ## true = key consumed.
+method onKey*(c: Control, e: KeyEvent): bool {.base.} = false      # true = key consumed
 
 method onText*(c: Control, s: string) {.base.} = discard
 
-method onWheel*(c: Control, dx, dy: float): bool {.base.} = false  ## true = consumed.
+method onWheel*(c: Control, dx, dy: float): bool {.base.} = false  # true = consumed
 
 method onFocus*(c: Control, gained: bool) {.base.} = discard
 
@@ -303,6 +308,9 @@ method typeName*(c: Control): string {.base.} = "Control"
 method isDefaultButton*(c: Control): bool {.base.} = false
 
 method isCancelButton*(c: Control): bool {.base.} = false
+
+# Row / column under (x, y), 1-based (0 = none); copied into click events.
+method hitInfo*(c: Control, x, y: float): tuple[index, column: int] {.base.} = (0, 0)
 
 method onPopupChoice*(c: Control, i: int, text: string) {.base.} =
   # Called when the user picks an item of a drop-down list / menu opened by this control.
