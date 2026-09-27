@@ -43,6 +43,8 @@ Lists: List Box (multi-selection), Combo Box, Table (header sorting, resizable c
 
 Data grid: Grid, a full data-entry table: typed columns (text, number, date, image, button, combo, check box) that are sub-controls, consultation or entry at grid / column / line / cell level, single or multiple selection, sorting, search, hidden / moved / resized columns, conditional formatting, breaks, footer aggregates, CSV and JSON import / export.
 
+Dialog boxes (modal, in their own window, blocking the calling handler until closed): alert, confirm, prompt with stop / exclamation / question / information / custom icons, Open and Save As, Print and Page Setup, Color and Font, Find and Replace.
+
 Charts and planning: Chart (column, line, area, pie), Calendar (value `"YYYYMMDD"`), Kanban (drag and drop), TreeMap, Gantt Chart.
 
 Not covered: HTML, PDF viewer, Word processor, Spreadsheet, Camera, Conference, Multimedia, OLE/ActiveX/.NET, Map, Pivot table, Scheduler/Organizer, Org chart, Hierarchical table, Image list, Ribbon, Internal window, Dashboard. They can be added by subclassing `Control` (see the tutorial, step 9).
@@ -64,15 +66,25 @@ src/wdgui/core.nim               Control, Container, Window, events, layouts, fo
 src/wdgui/controls_basic.nim     basic controls and containers
 src/wdgui/controls_lists.nim     list-type controls and popups
 src/wdgui/controls_charts.nim    chart, calendar, kanban, treemap, gantt
-src/wdgui/controls_grid.nim      the Grid control and its grid… API
-src/wdgui/controls_panel.nim     the scrollable Panel and its panel… API
+src/wdgui/controls_grid.nim      the Grid control and its grid... API
+src/wdgui/controls_panel.nim     the scrollable Panel and its panel... API
+src/wdgui/dialogs.nim            modal dialog boxes
 src/wdgui/application.nim        UI loop and threaded dispatcher
 src/wdgui/api.nim                id-based WD-style API
 examples/demo.nim                tour of every control
 examples/custom_control.nim      subclassing example
 examples/grid_demo.nim           the Grid control
 examples/panel_demo.nim          scrollable panels
+examples/dialogs_demo.nim        dialog boxes
 ```
+
+### Version 1.3.0
+
++ Grid control
++ Panel control
++ Dialog boxes (alert, confirm, prompt, find, replace and file, printer, color and font selectors)
+
+[![Buy Me a Coffee](dialogs.png)](https://buymeacoffee.com/sonaliwan.fr)
 
 ## Known limitations
 

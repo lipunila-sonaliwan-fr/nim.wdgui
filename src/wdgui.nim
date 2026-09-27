@@ -1,4 +1,5 @@
-# wdgui - Nim GUI library on top of SDL3 modelled on WD-style controls and API.
+# CC BY-NC-SA 4.0 - jean-marc "jihem" quere 2026
+# wdgui - Nim GUI library on top of SDL3 modelled on WINDEV controls and API.
 #                _              _
 #   __      ____| |_ __ _ _   _(_)
 #   \ \ /\ / / _` (_) _` | | | | |
@@ -13,9 +14,9 @@
 #   runApplication()
 #
 # Build: nim c --threads:on --mm:atomicArc [-d:sdlttf] [-d:sdlimage] myprog.nim
-import wdgui/[core, controls_basic, controls_lists, controls_charts, controls_grid, controls_panel, application, api]
+import wdgui/[core, controls_basic, controls_lists, controls_charts, controls_grid, controls_panel, dialogs, application, api]
 import sdl3
-export core, controls_basic, controls_lists, controls_charts, controls_grid, controls_panel, application, api
+export core, controls_basic, controls_lists, controls_charts, controls_grid, controls_panel, dialogs, application, api
 
 # Keyboard constants that are handy inside event handlers.
 export SDLK_RETURN, SDLK_ESCAPE, SDLK_TAB, SDLK_SPACE, SDLK_BACKSPACE, SDLK_DELETE,

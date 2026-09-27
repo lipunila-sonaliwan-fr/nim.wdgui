@@ -30,7 +30,7 @@ On Apple Silicon, Homebrew installs libraries in `/opt/homebrew/lib`, which the 
 export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib:$DYLD_FALLBACK_LIBRARY_PATH
 ```
 
-**Linux (Debian/Ubuntu, Fedora, Arch...)**
+**Linux (Debian/Ubuntu, Fedora 🤩, Arch...)**
 
 Install Nim (`choosenim` or your package manager) and the SDL3 packages (`libsdl3-dev`, `libsdl3-ttf-dev`, `libsdl3-image-dev` or equivalent). If your distribution does not ship SDL3 yet, build it from source and run `sudo ldconfig`.
 
@@ -817,7 +817,7 @@ for i in 1 .. 144:
 runApplication()
 ```
 
-`newPanel(layout = lkVertical, scrollbars = smAlways, margin = -1, spacing = -1, columns = 2)` takes the same layout parameters as `newContainer`. A panel asks for little space itself, at most 400 × 300. Give it a `weight`, a `dock` or a fixed size.
+`newPanel(layout = lkVertical, scrollbars = smAlways, margin = -1, spacing = -1, columns = 2)` takes the same layout parameters as `newContainer`. A panel asks for little space itself, at most 400 x 300. Give it a `weight`, a `dock` or a fixed size.
 
 ### 12.1 macOS scrollbars
 
@@ -825,7 +825,7 @@ On every platform, the scrollbars look and behave like macOS ones:
 
 | Behaviour | Detail |
 |---|---|
-| Proportional thumb | thumb length = track length × visible size / content size |
+| Proportional thumb | thumb length = track length x visible size / content size |
 | Drag the thumb | scrolls continuously |
 | Click the track | jumps one page (90 % of the visible size) |
 | Alt/Option-click the track | jumps to the clicked spot (macOS "Jump to the spot clicked") |
@@ -889,7 +889,146 @@ To create your own scrollable or composite containers, `Container` has three ove
 
 ---
 
-## Step 13 - Putting it together
+## Step 13 — Dialog boxes
+
+wdgui provides modal dialog boxes. Each one opens in its **own dialog window**, centered on the active window, and **captures the focus until it is closed**: the other windows ignore the mouse and the keyboard, and clicking them brings the dialog back to the front.
+
+### 13.1 How they are called
+
+Like WINDEV's `Info`, `YesNo` or `Input`, a dialog function **blocks until the user closes the box** and then returns which button was pressed. In wdgui this fits naturally: your event handler already runs on its own thread (step 6), so it simply waits while the interface keeps running.
+
+```nim
+proc handler(ev: var Event) {.nimcall, gcsafe.} =
+  if ev.kind == evClick and ev.id == btnDelete:
+    if confirm(iconQuestion, "Do you want to delete this record?") == drOk:
+      deleteRecord()
+```
+
+Rules of thumb:
+
+- Call dialogs from an event handler, or from any thread other than the UI thread, once `runApplication()` is running. Called from the UI thread or before the UI starts, they print a warning and return their default value (`drCancel`, the default text, `""`).
+- They also work with `dispatchMode = dmSequential`. Events of dialog windows bypass the dispatcher queue and always get their own thread.
+- Dialogs can open other dialogs. For example, *Save As* asks for confirmation before replacing a file.
+- `Enter` activates the default button and `Escape` the cancel button. The window's close box counts as *Cancel*.
+
+The functions return a `DialogResult`: `drOk` or `drCancel`. Dialogs that edit a value (print, page setup, color, font, find) take it as a `var` parameter and update it only on OK.
+
+### 13.2 Icons
+
+The message dialogs show an icon at the top left, before the message:
+
+| Id | Picture |
+|---|---|
+| `iconStop` | red "stop" octagon |
+| `iconExclamation` | yellow warning triangle with "!" |
+| `iconQuestion` | blue disc with "?" |
+| `iconInformation` | blue disc with "i" |
+| `iconNone` | no icon |
+| `loadIcon(path)` | your own picture (BMP, or PNG/JPG with `-d:sdlimage`); returns its `IconId` |
+
+```nim
+let logo = loadIcon("examples/logo.bmp")      # once, e.g. at startup
+alert(logo, "Welcome!")
+```
+
+The same icons are available as a control: `newIconView(iconQuestion, size = 48)`.
+
+### 13.3 alert, confirm, prompt
+
+```nim
+alert(iconStop, "You have not entered the date.")              # OK only
+
+if confirm(iconQuestion, "Do you want to delete this record?") == drOk:
+  gridDeleteLine(grid, gridSelect(grid))
+
+let name = prompt(iconQuestion, "File name?", "report.txt")
+# the typed text on OK, "report.txt" (the proposed value) on Cancel
+```
+
+All three accept an optional `title`. Long messages wrap automatically, and `\n` forces a line break. Buttons follow the platform order: *OK* then *Cancel* on Windows, *Cancel* then *OK* on macOS and GNOME.
+
+### 13.4 Open and Save As
+
+```nim
+let path = openFileDialog(title = "Open", folder = "",
+                          filter = "Images|*.bmp;*.png\nAll files|*")
+if path.len > 0: imageId.value = path
+
+let target = saveFileDialog(defaultName = "export", filter = "CSV files|*.csv\nAll files|*")
+if target.len > 0: discard gridSaveCsv(grid, target)
+```
+
+The box has a folder bar with an *Up* button and an editable path, a list of places (Home, Desktop, Documents, Downloads, current folder, computer root), a sortable table of the folder content (name, size, modified), a file-name field and a filter combo. The `filter` parameter holds one `Label|*.ext1;*.ext2` entry per line.
+
+- A double-click opens a folder or chooses a file. Typing a folder path and pressing Enter goes there.
+- *Open* checks that the file exists.
+- *Save As* adds the extension of the current filter when none is typed, checks that the folder exists and asks before replacing an existing file (`confirmOverwrite = true`).
+- Both return the full path, or `""` when cancelled.
+
+### 13.5 Print and Page Setup
+
+```nim
+var print = defaultPrintSettings()
+if printDialog(print) == drOk:
+  echo print.printer, " ", print.copies, " copies, collate: ", print.collate
+  if not print.allPages: echo "pages ", print.fromPage, "-", print.toPage
+
+var page = defaultPageSettings()
+if pageSetupDialog(page) == drOk:
+  echo page.paper, " ", page.orientation, " margins ", page.marginLeft, " mm"
+  echo paperSizeMm(page.paper)                 # (w: 210.0, h: 297.0) for A4
+```
+
+`printDialog` lists the installed printers (`listPrinters()`, which uses CUPS `lpstat` on macOS and Linux and PowerShell on Windows) and lets the user choose copies, all pages or a range, collate and color. `pageSetupDialog` sets the paper (A4, A3, A5, Letter, Legal), the orientation and the four margins, with a live page preview.
+
+wdgui has no printing engine: these dialogs **collect settings** for your own printing or PDF code.
+
+### 13.6 Color and Font
+
+```nim
+var c = hex"#005FB8"
+if colorDialog(c) == drOk:
+  labelId.color = c
+  echo hexOf(c)                                # "#RRGGBB" or "#RRGGBBAA"
+
+var f = FontChoice(family: "DejaVuSans", size: 14)
+if fontDialog(f) == drOk:
+  echo f.family, " ", f.style, " ", f.size, " bold: ", f.bold, " italic: ", f.italic
+  echo f.path                                  # the font file, e.g. for SDL3_ttf
+```
+
+The color dialog has a palette of 48 basic colors, red / green / blue / opacity sliders with numeric fields, a hexadecimal code and an old/new comparison swatch. The font dialog lists the installed TrueType/OpenType fonts (`scanFonts()`) by family, style and size, with an underline option and a live preview (build with `-d:sdlttf` to see the real font).
+
+### 13.7 Find and Replace
+
+With a target `Edit`, the dialog works directly on its text and **stays open** until *Close*: *Find Next* selects the next match, *Replace* replaces the selected match and selects the next one, *Replace All* replaces everything. A status line reports the result.
+
+```nim
+var req = FindRequest(findText: "fox")
+discard findDialog(req, target = editId)                   # Find
+discard findDialog(req, target = editId, replace = true)   # Find and Replace
+echo "last search: ", req.findText                         # remembered for next time
+```
+
+Without a target, the dialog closes on the first action and returns the request, so you can search anything yourself (a grid, a document, a database...):
+
+```nim
+var req = FindRequest()
+if findDialog(req) == drOk:          # req.action = faFindNext (or faReplace / faReplaceAll)
+  let pos = findInText(myText, req, start = 0)          # -1 if not found
+```
+
+Options: *Match case*, *Whole word* and, for Find, *Search backwards*. The search wraps around the end of the text. `applyFind(editId, req)` runs a request on an Edit from code.
+
+`examples/dialogs_demo.nim` opens every dialog from a row of buttons:
+
+```bash
+nimble dialogs   # or: nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/dialogs_demo.nim
+```
+
+---
+
+## Step 14 - Putting it together
 
 `examples/demo.nim` combines everything above: a menu bar, a toolbar, five tab pages with every control, live theme switching (combo + dark switch in the status bar), a long process updating a progress bar, a context menu on the list, and propagation to a cell. Read it top to bottom; it is written to be copied from.
 
@@ -960,3 +1099,10 @@ nimble panel     # scrollable panels
 | DonneFocus / SetFocus | | `setFocus` |
 | ChampEnCours / CurrentControl | | `currentControl` |
 | Ferme / Close | | `closeWindow` |
+| Info | Info | `alert(icon, message)` |
+| OuiNon / OKAnnuler | YesNo / OKCancel | `confirm(icon, message)` |
+| Saisie (boîte) | Input | `prompt(icon, message, default)` |
+| fSélecteur | fSelect | `openFileDialog`, `saveFileDialog` |
+| iConfigure / iParamètre | iConfigure / iParameter | `printDialog`, `pageSetupDialog` |
+| SélecteurCouleur | ColorSelect | `colorDialog` |
+| SélecteurPolice | FontSelect | `fontDialog` |

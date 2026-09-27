@@ -73,12 +73,34 @@ proc dispatchLoop() {.thread.} =
       activeThreads.add th
     reap(activeThreads, true)
 
+var spawned: seq[ptr Thread[Event]]
+
+proc spawnNow(e: Event) {.nimcall, gcsafe.} =
+  ## Runs an event on a new thread immediately (windows with `alwaysThreaded`, e.g. dialogs):
+  ## they keep working even while the dispatcher is blocked by a handler waiting for them.
+  guarded:
+    reap(spawned, false)
+    let th = cast[ptr Thread[Event]](allocShared0(sizeof(Thread[Event])))
+    createThread(th[], worker, e)
+    spawned.add th
+
 proc pendingEvents*(): int =
   # Number of events pushed but not yet popped.
   {.cast(gcsafe).}:
     result = eventQueue.peek()
 
 # UI helpers
+
+proc topModal(): Window =
+  for i in countdown(allWindows.high, 0):
+    let w = allWindows[i]
+    if w.isModal and w.opened and not w.closeRequested: return w
+
+proc blocked(f: Window, bringToFront = false): bool =
+  ## True when a modal window other than `f` is open (it then gets the focus back).
+  let m = topModal()
+  result = m != nil and m != f
+  if result and bringToFront and m.sdlWin != nil: discard SDL_RaiseWindow(m.sdlWin)
 
 proc windowFromSdl(id: uint32): Window =
   for f in allWindows:
@@ -125,7 +147,8 @@ proc findButton(c: Control, isCancel: bool): Control =
         if r != nil: return r
 
 proc realize(f: Window) =
-  f.sdlWin = SDL_CreateWindow(f.title.cstring, f.width.cint, f.height.cint, SDL_WINDOW_RESIZABLE)
+  let flags = if f.resizable: SDL_WINDOW_RESIZABLE else: 0'u64
+  f.sdlWin = SDL_CreateWindow(f.title.cstring, f.width.cint, f.height.cint, flags)
   if f.sdlWin == nil:
     stderr.writeLine("wdgui: cannot create window: ", $SDL_GetError())
     f.closed = true
@@ -134,6 +157,19 @@ proc realize(f: Window) =
   discard SDL_SetRenderVSync(f.sdlRen, 1)
   discard SDL_SetRenderDrawBlendMode(f.sdlRen, SDL_BLENDMODE_BLEND)
   f.sdlId = SDL_GetWindowID(f.sdlWin)
+  let owner = f.modalFor
+  if owner != nil and owner.sdlWin != nil:
+    # child window of its owner, centered horizontally, in the upper third
+    discard SDL_SetWindowParent(f.sdlWin, owner.sdlWin)
+    if f.isModal: discard SDL_SetWindowModal(f.sdlWin, true)
+    var ox, oy, ow, oh: cint
+    discard SDL_GetWindowPosition(owner.sdlWin, addr ox, addr oy)
+    discard SDL_GetWindowSize(owner.sdlWin, addr ow, addr oh)
+    discard SDL_SetWindowPosition(f.sdlWin, cint(int(ox) + (int(ow) - f.width) div 2),
+                                  cint(int(oy) + max(0, (int(oh) - f.height) div 3)))
+  if f.isModal:
+    discard SDL_RaiseWindow(f.sdlWin)
+    activeWindow = f
   f.drawing = newDrawing(f.sdlRen)
   f.appliedTitle = f.title
   f.opened = true
@@ -203,11 +239,15 @@ proc handleEvent(e: var SDL_Event) =
     f.dirty = true
     case typ
     of SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+      if blocked(f, true): return
       emit(f, evWindowClose)
       if not f.manualClose: f.closeRequested = true
     of SDL_EVENT_WINDOW_RESIZED:
       emit(f, evWindowResize, x = float(we.data1), y = float(we.data2))
-    of SDL_EVENT_WINDOW_FOCUS_GAINED: emit(f, evWindowActivate)
+    of SDL_EVENT_WINDOW_FOCUS_GAINED:
+      if blocked(f, true): return
+      activeWindow = f
+      emit(f, evWindowActivate)
     of SDL_EVENT_WINDOW_FOCUS_LOST:
       closePopup(f)
       emit(f, evWindowDeactivate)
@@ -216,7 +256,7 @@ proc handleEvent(e: var SDL_Event) =
   of SDL_EVENT_MOUSE_MOTION:
     let me = cast[ptr SDL_MouseMotionEvent](addr e)
     let f = windowFromSdl(me.windowID)
-    if f == nil: return
+    if f == nil or blocked(f): return
     let x = float(me.x)
     let y = float(me.y)
     f.mouseX = x
@@ -239,7 +279,8 @@ proc handleEvent(e: var SDL_Event) =
   of SDL_EVENT_MOUSE_BUTTON_DOWN:
     let be = cast[ptr SDL_MouseButtonEvent](addr e)
     let f = windowFromSdl(be.windowID)
-    if f == nil: return
+    if f == nil or blocked(f, true): return
+    activeWindow = f
     let x = float(be.x)
     let y = float(be.y)
     let b = buttonFrom(be.button)
@@ -265,7 +306,7 @@ proc handleEvent(e: var SDL_Event) =
   of SDL_EVENT_MOUSE_BUTTON_UP:
     let be = cast[ptr SDL_MouseButtonEvent](addr e)
     let f = windowFromSdl(be.windowID)
-    if f == nil: return
+    if f == nil or blocked(f): return
     let x = float(be.x)
     let y = float(be.y)
     let b = buttonFrom(be.button)
@@ -295,7 +336,7 @@ proc handleEvent(e: var SDL_Event) =
   of SDL_EVENT_MOUSE_WHEEL:
     let we = cast[ptr SDL_MouseWheelEvent](addr e)
     let f = windowFromSdl(we.windowID)
-    if f == nil: return
+    if f == nil or blocked(f): return
     var dx = float(we.x)
     var dy = float(we.y)
     if we.direction == SDL_MOUSEWHEEL_FLIPPED:
@@ -312,7 +353,7 @@ proc handleEvent(e: var SDL_Event) =
   of SDL_EVENT_KEY_DOWN, SDL_EVENT_KEY_UP:
     let ke = cast[ptr SDL_KeyboardEvent](addr e)
     let f = windowFromSdl(ke.windowID)
-    if f == nil: return
+    if f == nil or blocked(f): return
     f.dirty = true
     let target: Control = if f.focusedControl != nil: f.focusedControl else: f
     if typ == SDL_EVENT_KEY_UP:
@@ -340,7 +381,7 @@ proc handleEvent(e: var SDL_Event) =
   of SDL_EVENT_TEXT_INPUT:
     let te = cast[ptr SDL_TextInputEvent](addr e)
     let f = windowFromSdl(te.windowID)
-    if f == nil or te.text == nil: return
+    if f == nil or te.text == nil or blocked(f): return
     let s = $te.text
     let c = f.focusedControl
     if c != nil and c.isActive and c.acceptsText:
@@ -382,6 +423,8 @@ proc uiLoop() {.thread.} =
       if not TTF_Init(): stderr.writeLine("wdgui: TTF_Init failed, using bitmap font")
     guarded:
       wakeEvent = SDL_RegisterEvents(1)
+      directSpawn = spawnNow
+      uiThreadId = getThreadId()
       sdlReady = true
     var hadWindow = false
     while not quitFlag.load:
@@ -408,6 +451,9 @@ proc uiLoop() {.thread.} =
       for f in allWindows:
         if not f.closed: destroyWindow(f)
       sdlReady = false
+      directSpawn = nil
+      uiThreadId = 0
+    reap(spawned, true)
     for c in cursors:
       if c != nil: SDL_DestroyCursor(c)
     SDL_Quit()

@@ -36,7 +36,7 @@ proc handler(ev: var Event) {.nimcall, gcsafe.} =
   else: discard
 
 proc main() =
-  let win = newWindow("wdgui — Panel (scrollable container)", 1000, 620, handler, layout = lkBorder)
+  let win = newWindow("wdgui - Panel (scrollable container)", 1000, 620, handler, layout = lkBorder)
 
   # toolbar
   let top = win.addChild(newContainer(lkHorizontal, 0))

@@ -4,9 +4,9 @@
 # not fit. The scrollbars look and behave like macOS ones:
 #
 # * the thumb is proportional to the visible part of the content (viewport / content);
-# * `smAlways` (default): "Show scroll bars: Always" — a light track, a gray pill thumb
+# * `smAlways` (default): "Show scroll bars: Always" - a light track, a gray pill thumb
 #   that darkens on hover; the bars take their own space (15 px);
-# * `smAutomatic`: "Show scroll bars: Automatically" — overlay bars that appear while
+# * `smAutomatic`: "Show scroll bars: Automatically" - overlay bars that appear while
 #   scrolling and fade out after about a second; pointing at a bar widens its thumb and
 #   reveals its track; they take no space;
 # * `smHidden`: no bar at all, the content still scrolls with the wheel / trackpad;

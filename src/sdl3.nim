@@ -163,6 +163,11 @@ proc SDL_DestroyWindow*(w: SDL_Window)
 proc SDL_GetWindowID*(w: SDL_Window): uint32
 proc SDL_GetWindowSize*(w: SDL_Window, pw, ph: ptr cint): bool
 proc SDL_SetWindowTitle*(w: SDL_Window, title: cstring): bool
+proc SDL_SetWindowParent*(w, parent: SDL_Window): bool
+proc SDL_SetWindowModal*(w: SDL_Window, modal: bool): bool
+proc SDL_GetWindowPosition*(w: SDL_Window, px, py: ptr cint): bool
+proc SDL_SetWindowPosition*(w: SDL_Window, x, y: cint): bool
+proc SDL_RaiseWindow*(w: SDL_Window): bool
 proc SDL_CreateRenderer*(w: SDL_Window, name: cstring): SDL_Renderer
 proc SDL_DestroyRenderer*(r: SDL_Renderer)
 proc SDL_SetRenderVSync*(r: SDL_Renderer, vsync: cint): bool

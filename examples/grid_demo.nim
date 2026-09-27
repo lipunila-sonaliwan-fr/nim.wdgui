@@ -27,7 +27,7 @@ proc handler(ev: var Event) {.nimcall, gcsafe.} =
     of evClick:
       # button column: the click carries the row and the column
       if ev.index > 0 and ev.column == gridColumnIndex(gGrid, "action"):
-        say("Details of " & gridCell(gGrid, ev.index, "customer") & " — amount " &
+        say("Details of " & gridCell(gGrid, ev.index, "customer") & " - amount " &
             gridCell(gGrid, ev.index, "amount"))
     else: discard
     return
@@ -65,7 +65,7 @@ proc handler(ev: var Event) {.nimcall, gcsafe.} =
   else: discard
 
 proc main() =
-  let win = newWindow("wdgui — Grid control", 1100, 640, handler, layout = lkBorder)
+  let win = newWindow("wdgui - Grid control", 1100, 640, handler, layout = lkBorder)
   win.root.margin = 0
   win.root.spacing = 0
 
