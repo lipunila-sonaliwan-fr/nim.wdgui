@@ -126,6 +126,10 @@ type
     tooltipShown*: bool
     caretVisible*: bool
     animating*: bool          # set during draw by a control that needs another frame (fades…)
+    resizable*: bool          # the user may resize the window (default true)
+    isModal*: bool            # modal window: blocks input to every other window while open
+    modalFor*: Window         # owner of a modal window (it is centered on it)
+    alwaysThreaded*: bool     # events go straight to a new thread, bypassing the dispatcher queue
 
 var
   guiLock*: Lock
@@ -135,6 +139,9 @@ var
   wakeEvent*: uint32
   sdlReady*: bool
   lockDepth* {.threadvar.}: int
+  activeWindow*: Window          # last window that received the focus
+  uiThreadId*: int               # id of the thread running the UI loop (0 = not running)
+  directSpawn*: proc (e: Event) {.nimcall, gcsafe.}  ## set by the UI loop (see alwaysThreaded)
 
 initLock(guiLock)
 open(eventQueue)
@@ -235,7 +242,8 @@ proc emit*(c: Control, kind: EventKind, index = 0, text = "", column = 0,
                     modifiers: mods, dx: dx, dy: dy, isRepeat: isRepeat)
   {.cast(gcsafe).}:
     if sdlReady: e.timestamp = SDL_GetTicks()
-    eventQueue.send(e)
+    if c.win.alwaysThreaded and directSpawn != nil: directSpawn(e)
+    else: eventQueue.send(e)
 
 proc propagationChain*(id: ControlId): seq[ControlId] =
   # Propagation chain: target → parents → root → window.
@@ -532,7 +540,7 @@ proc drawTree*(c: Control, d: Drawing, t: Theme) =
     let k = Container(c)
     d.pushClip(k.rect)
     for i, e in k.children:
-      if k.childShown(i) and e.rect.intersect(k.rect).w > 0 and e.rect.intersect(k.rect).h > 0:
+      if k.childShown(i) and not d.isClippedOut(e.rect):  # skip what cannot be seen!
         drawTree(e, d, t)
     k.drawOverlay(d, t)
     d.popClip()
@@ -611,8 +619,9 @@ proc newSupercontrol*(layout = lkHorizontal, spacing = -1.0): Container =
 proc newWindow*(title: string, width = 800, height = 600,
                       dispatch: DispatchProc = nil, theme = themeNative(),
                       layout = lkVertical): Window =
-  # Creates a window (realized on screen by the UI loop, from any thread).
-  result = Window(title: title, width: width, height: height, dispatch: dispatch, theme: theme)
+  ## Creates a window (realized on screen by the UI loop, from any thread).
+  result = Window(title: title, width: width, height: height, dispatch: dispatch, theme: theme,
+                  resizable: true)
   initControl(result, title)
   result.root = newContainer(layout)
   let f = result

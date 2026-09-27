@@ -16,6 +16,7 @@ type
   Drawing* = ref object
     ren*: SDL_Renderer
     clips: seq[Rect]
+    clipEmpty: bool              # the current clip is empty: nothing must be drawn
     scale*: float
     cacheKey: string
     when defined(sdlttf):
@@ -47,14 +48,31 @@ proc color(d: Drawing, c: Color) {.inline.} =
   discard SDL_SetRenderDrawColor(d.ren, c.r, c.g, c.b, c.a)
 
 proc applyClip(d: Drawing, s = 1.0) =
+  d.clipEmpty = false
   if d.clips.len == 0:
     discard SDL_SetRenderClipRect(d.ren, nil)
-  else:
-    let c = d.clips[^1]
-    var r = if c.w <= 0 or c.h <= 0: SDL_Rect(x: -4, y: -4, w: 1, h: 1)
-            else: SDL_Rect(x: cint(floor(c.x / s)), y: cint(floor(c.y / s)),
-                           w: cint(ceil(c.w / s)), h: cint(ceil(c.h / s)))
+    return
+  let c = d.clips[^1]
+  if c.w < 0.5 or c.h < 0.5:
+    # Empty clip. Some SDL back ends (Metal, GPU…) turn a degenerate or off-screen
+    # scissor rectangle into "no clipping at all", so we never send one: we draw nothing.
+    d.clipEmpty = true
+    var r = SDL_Rect(x: 0, y: 0, w: 1, h: 1)
     discard SDL_SetRenderClipRect(d.ren, addr r)
+    return
+  var r = SDL_Rect(x: cint(floor(c.x / s)), y: cint(floor(c.y / s)),
+                   w: max(1.cint, cint(ceil(c.w / s))), h: max(1.cint, cint(ceil(c.h / s))))
+  discard SDL_SetRenderClipRect(d.ren, addr r)
+
+proc clipRect*(d: Drawing): Rect =
+  ## Current clip rectangle (a huge one when there is no clip).
+  if d.clips.len > 0: d.clips[^1] else: Rect(x: -1e9, y: -1e9, w: 2e9, h: 2e9)
+
+proc isClippedOut*(d: Drawing, r: Rect): bool =
+  ## True when nothing of `r` can be visible with the current clip.
+  if d.clipEmpty: return true
+  let i = intersect(d.clipRect, r)
+  i.w <= 0 or i.h <= 0
 
 proc pushClip*(d: Drawing, r: Rect) =
   d.clips.add(if d.clips.len > 0: intersect(d.clips[^1], r) else: r)
@@ -86,6 +104,7 @@ proc fillRect*(d: Drawing, r: Rect, c: Color) =
   discard SDL_RenderFillRect(d.ren, addr fr)
 
 proc line*(d: Drawing, x1, y1, x2, y2: float, c: Color, ep = 1.0) =
+  if d.clipEmpty: return
   if c.a == 0: return
   d.color(c)
   if ep <= 1.0:
@@ -102,6 +121,7 @@ proc line*(d: Drawing, x1, y1, x2, y2: float, c: Color, ep = 1.0) =
     discard SDL_RenderLine(d.ren, cfloat(x1 + nx*o), cfloat(y1 + ny*o), cfloat(x2 + nx*o), cfloat(y2 + ny*o))
 
 proc fillRoundRect*(d: Drawing, r: Rect, radius: float, c: Color) =
+  if d.clipEmpty: return
   if c.a == 0 or r.w <= 0 or r.h <= 0: return
   let x = round(r.x)
   let y = round(r.y)
@@ -131,6 +151,7 @@ proc fillRoundRect*(d: Drawing, r: Rect, radius: float, c: Color) =
       discard SDL_RenderFillRect(d.ren, addr l2)
 
 proc strokeRoundRect*(d: Drawing, r: Rect, radius: float, c: Color, ep = 1.0) =
+  if d.clipEmpty: return
   if c.a == 0 or r.w <= 0 or r.h <= 0: return
   d.color(c)
   for k in 0 ..< max(1, int(round(ep))):
@@ -160,6 +181,7 @@ proc strokeRoundRect*(d: Drawing, r: Rect, radius: float, c: Color, ep = 1.0) =
 proc strokeRect*(d: Drawing, r: Rect, c: Color, ep = 1.0) = d.strokeRoundRect(r, 0, c, ep)
 
 proc fillEllipse*(d: Drawing, r: Rect, c: Color) =
+  if d.clipEmpty: return
   if c.a == 0 or r.w <= 0 or r.h <= 0: return
   d.color(c)
   let a = r.w / 2
@@ -173,6 +195,7 @@ proc fillEllipse*(d: Drawing, r: Rect, c: Color) =
     discard SDL_RenderFillRect(d.ren, addr l)
 
 proc strokeEllipse*(d: Drawing, r: Rect, c: Color, ep = 1.0) =
+  if d.clipEmpty: return
   if c.a == 0 or r.w <= 0 or r.h <= 0: return
   d.color(c)
   for k in 0 ..< max(1, int(ep)):
@@ -191,6 +214,7 @@ proc strokeCircle*(d: Drawing, cx, cy, radius: float, c: Color, ep = 1.0) =
   d.strokeEllipse(rect(cx - radius, cy - radius, 2*radius, 2*radius), c, ep)
 
 proc fillPolygon*(d: Drawing, pts: openArray[Point], c: Color) =
+  if d.clipEmpty: return
   # Scanline fill (even-odd rule).
   if pts.len < 3 or c.a == 0: return
   d.color(c)
@@ -240,6 +264,7 @@ proc drawFocus*(d: Drawing, t: Theme, r: Rect, radius: float) =
   of fsUnderline: d.strokeRoundRect(r.shrink(-3), radius + 3, t.focus, 2)
 
 proc drawTexture*(d: Drawing, tex: SDL_Texture, dst: Rect) =
+  if d.clipEmpty: return
   var r = SDL_FRect(x: dst.x.cfloat, y: dst.y.cfloat, w: dst.w.cfloat, h: dst.h.cfloat)
   discard SDL_RenderTexture(d.ren, tex, nil, addr r)
 
@@ -287,6 +312,7 @@ proc textWidth*(d: Drawing, s: string): float =
   float(s.runeLen) * 8.0 * d.scale
 
 proc text*(d: Drawing, x, y: float, s: string, c: Color) =
+  if d.clipEmpty: return
   if s.len == 0 or c.a == 0: return
   when defined(sdlttf):
     if d.font != nil:

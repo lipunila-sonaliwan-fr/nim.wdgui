@@ -1,7 +1,8 @@
-## Panel demo: scrollable containers with macOS-style scrollbars, nested panels,
-## children that keep their natural size, and the panel API.
-##
-##   nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/panel_demo.nim
+# CC BY-NC-SA 4.0 - jean-marc "jihem" quere 2026
+# Panel demo: scrollable containers with macOS-style scrollbars, nested panels,
+# children that keep their natural size, and the panel API.
+#
+#   nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/panel_demo.nim
 import ../src/wdgui
 
 var gLeft, gRight, gMode, gStatus, gBtnTop, gBtnEnd, gTarget: ControlId
@@ -37,7 +38,7 @@ proc handler(ev: var Event) {.nimcall, gcsafe.} =
 proc main() =
   let win = newWindow("wdgui — Panel (scrollable container)", 1000, 620, handler, layout = lkBorder)
 
-  # ---- toolbar
+  # toolbar
   let top = win.addChild(newContainer(lkHorizontal, 0))
   top.dock = dkTop
   discard top.addChild(newLabel("Scroll bars:"))
@@ -45,7 +46,7 @@ proc main() =
   gBtnTop = top.addChild(newButton("Scroll to top")).id
   gBtnEnd = top.addChild(newButton("Scroll to end")).id
 
-  # ---- status
+  # status.
   let st = win.addChild(newLabel("Scroll with the wheel / trackpad, drag a thumb, click a track (Alt-click jumps)."))
   st.dock = dkBottom
   gStatus = st.id
@@ -53,7 +54,7 @@ proc main() =
   let body = win.addChild(newContainer(lkHorizontal, 0))
   body.dock = dkCenter
 
-  # ---- left: a panel holding a 12 x 12 grid of fixed-size buttons (larger than the window)
+  # left: a panel holding a 12 x 12 grid of fixed-size buttons (larger than the window).
   let left = body.addChild(newPanel(lkGrid, columns = 12))
   left.weight = 1
   left.framed = true
@@ -66,7 +67,7 @@ proc main() =
       b.isDefault = true
       gTarget = b.id
 
-  # ---- right: a panel holding a wide image and a nested panel
+  # right: a panel holding a wide image and a nested panel.
   let right = body.addChild(newPanel(lkVertical))
   right.weight = 1
   right.framed = true
