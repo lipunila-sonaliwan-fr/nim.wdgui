@@ -86,6 +86,11 @@ examples/dialogs_demo.nim        dialog boxes
 
 [![Buy Me a Coffee](dialogs.png)](https://buymeacoffee.com/sonaliwan.fr)
 
+### Version 1.3.1
+
+Sample app, what's about a Nim editor ?
+[![Buy Me a Coffee](wdnim.png)](https://buymeacoffee.com/sonaliwan.fr)
+
 ## Known limitations
 
 No anti-aliasing of shapes; bitmap font without `-d:sdlttf`; containers do not scroll (list-type controls do); no IME beyond SDL text input; no accessibility support. With the default thread-per-event mode, two close events may be handled out of order; use `dispatchMode = dmSequential` when order matters.

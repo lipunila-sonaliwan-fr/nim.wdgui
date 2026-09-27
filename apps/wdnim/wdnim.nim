@@ -1,5 +1,5 @@
 # CC BY-NC-SA 4.0 - jean-marc "jihem" quere 2026
-# wdnim — a Nim editor built with wdgui (example application).
+# wdnim - a Nim editor built with wdgui (example application).
 #                _         _
 #   __      ____| |_ _ __ (_)_ __ ___
 #   \ \ /\ / / _` (_) '_ \| | '_ ` _ \
@@ -105,14 +105,14 @@ proc refreshStatus() =
     gStatusFile.caption = "No file"
     gStatusPos.caption = ""
     gStatusLines.caption = ""
-    gMain.caption = "wdnim — " & extractFilename(root())
+    gMain.caption = "wdnim - " & extractFilename(root())
     return
   let name = if info.path.len > 0: relToRoot(info.path) else: info.title
   gStatusFile.caption = (if info.modified: "* " else: "") & name
   gStatusPos.caption = "Ln " & $info.line & ", Col " & $info.col &
                        (if info.selected > 0: "  (" & $info.selected & " selected)" else: "")
   gStatusLines.caption = $info.lines & " lines · UTF-8 · LF · Nim"
-  gMain.caption = "wdnim — " & info.title & (if info.modified: " *" else: "") & " — " & extractFilename(root())
+  gMain.caption = "wdnim - " & info.title & (if info.modified: " *" else: "") & " - " & extractFilename(root())
 
 proc refreshGit() =
   let g = gitInfo(root())
@@ -261,7 +261,7 @@ proc runMode(mode: RunMode) =
   let t0 = epochTime()
   let code = runCommand(cmd, root(), appendConsole)
   let dt = epochTime() - t0
-  appendConsole("— exit code " & $code & " in " & formatFloat(dt, ffDecimal, 2) & " s")
+  appendConsole("- exit code " & $code & " in " & formatFloat(dt, ffDecimal, 2) & " s")
   say(if code == 0: $mode & ": success" else: $mode & ": failed (exit code " & $code & ")")
 
 proc jumpFromConsole() =

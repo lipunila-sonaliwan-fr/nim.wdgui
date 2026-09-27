@@ -1,5 +1,5 @@
 # CC BY-NC-SA 4.0 - jean-marc "jihem" quere 2026
-# wdnim — a Nim editor built with wdgui
+# wdnim - a Nim editor built with wdgui
 
 wdnim is the showcase application of wdgui. It is written only in Nim, on top of the wdgui controls and dialogs: a tabbed, syntax-highlighting code editor with a project tree, a minimap, a jGRASP-like control structure diagram, git status, run configurations and a launch console.
 

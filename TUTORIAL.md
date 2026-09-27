@@ -889,7 +889,7 @@ To create your own scrollable or composite containers, `Container` has three ove
 
 ---
 
-## Step 13 — Dialog boxes
+## Step 13 - Dialog boxes
 
 wdgui provides modal dialog boxes. Each one opens in its **own dialog window**, centered on the active window, and **captures the focus until it is closed**: the other windows ignore the mouse and the keyboard, and clicking them brings the dialog back to the front.
 
