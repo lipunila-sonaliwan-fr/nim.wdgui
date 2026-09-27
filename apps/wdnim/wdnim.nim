@@ -341,9 +341,9 @@ proc command(cmd: string) =
   of "stop": say(if stopRunning(): "Process stopped" else: "Nothing is running")
   of "clearConsole": gConsole.value = ""
   of "about":
-    alert(logoIcon, "wdnim 0.1\n\nA Nim editor written by Jean-Marc Quéré" &
-          "LPCS, Lab'Oratoire (metalab at sonaliwan.fr)" &
-          "in Nim with the wdgui library (): " &
+    alert(logoIcon, "wdnim 0.1\n\nA Nim editor written by Jean-Marc Quéré\n" &
+          "LPCS, Lab'Oratoire (metalab at sonaliwan.fr)\n" &
+          "in Nim with the wdgui library :\n" &
           "syntax highlighting, control structure diagram, minimap, " &
           "project tree, git status and launch console.", "About wdnim")
   else: discard
