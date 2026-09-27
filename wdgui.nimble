@@ -14,3 +14,6 @@ task grid, "Build and run the grid example":
 
 task custom, "Build and run the custom-control example":
   exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/custom_demo.nim"
+
+task panel, "Build and run the Panel demo":
+ exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/panel_demo.nim"

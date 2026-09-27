@@ -41,7 +41,7 @@ type
   ButtonStyle* = enum
     bsFlat, bsRaised, bsPill
   LookFeel* = enum
-    lfWindows = "Windows", lfMacOS = "MacOS", lfLinux = "Linux", lfCustom = "Custom"
+    lfWindows = "Windows", lfMacOS = "macOS", lfLinux = "Linux", lfCustom = "Custom"
 
   Theme* = object
     name*: string

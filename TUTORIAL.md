@@ -184,11 +184,12 @@ runApplication()
 
 Specialised containers:
 
-- `newCell(layout, title)` — a framed group box.
-- `newTab()` then `tab.addPage("Title", layout)` — returns the page container.
-- `newSplitter(vertical = true, position = 0.4)` — add exactly two children; the user drags the bar.
+- `newCell(layout, title)` - a framed group box.
+- `newTab()` then `tab.addPage("Title", layout)` - returns the page container.
+- `newSplitter(vertical = true, position = 0.4)` - add exactly two children; the user drags the bar.
 - `newToolbar()` then `toolbar.addTool("Open", tooltip = "Open a file")`.
-- `newSupercontrol(layout)` — a container without margin or decoration.
+- `newSupercontrol(layout)` - a container without margin or decoration.
+- `newPanel(layout)` - a scrollable container with macOS-style scrollbars (step 12).
 
 `margin` and `spacing` default to the theme values (set them to `0` for tight packing).
 
@@ -531,13 +532,372 @@ grType(c, ckLine)          # ckColumn, ckLine, ckArea, ckPie
 
 ---
 
-## Step 11 - Putting it together
+## Step 11 - The Grid control
+
+`Grid` is the most complete control of the library: a spreadsheet-like table for displaying **and** entering business data. It goes much further than the simple `Table` of step 5:
+
+| Feature | How |
+|---|---|
+| Typed columns | text, number, date, image, button, combo, check box |
+| Columns are sub-controls | each column has its own `ControlId` |
+| Consultation or entry | at grid, column, line or cell level |
+| Selection | single or multiple (Ctrl / Shift) |
+| Footers | sum, average, min, max, count |
+| Sorting, search | header click or code; `gridSeek`, `gridFind` |
+| Column layout | hide, move (drag the header), resize (drag the header edge) |
+| Conditional formatting | color a cell or a whole line when a condition matches |
+| Breaks | group lines by a column, with per-group aggregates |
+| Import / export | CSV and JSON, in memory or to a file |
+
+As everywhere in wdgui, lines and columns are **1-based**. Every function that takes a column accepts either its index or its **name**.
+
+### 11.1 Create a grid and its columns
+
+```nim
+import src/wdgui
+
+var grid: ControlId
+
+let win = newWindow("Orders", 900, 500)
+let g = win.addChild(newGrid(multiSelection = true))
+g.weight = 1
+grid = g.id
+
+discard gridAddColumn(grid, "id",       "#",          gcNumber, 50, decimals = 0)
+discard gridAddColumn(grid, "customer", "Customer",   gcText,   180)
+discard gridAddColumn(grid, "city",     "City",       gcCombo,  130,
+                      choices = ["Paris", "Lyon", "Nantes"])
+discard gridAddColumn(grid, "date",     "Order date", gcDate,   120)
+discard gridAddColumn(grid, "amount",   "Amount",     gcNumber, 120, decimals = 2)
+discard gridAddColumn(grid, "paid",     "Paid",       gcCheck,  60)
+discard gridAddColumn(grid, "logo",     "Logo",       gcImage,  70)
+discard gridAddColumn(grid, "action",   "Action",     gcButton, 100)
+gridSetButtonCaption(grid, "action", "Details")
+
+discard gridAddLine(grid, "1", "Alice Smith", "Paris", "20260903", "1250.00", "1", "examples/logo.bmp", "")
+discard gridAddLine(grid, "2", "Bob Jones",   "Lyon",  "20260905", "320.50",  "0", "examples/logo.bmp", "")
+
+runApplication()
+```
+
+`gridAddColumn(id, name, title, kind, width, choices, decimals)` returns the **column's own id**. The name is the stable key used in code and in CSV/JSON; the title is what the header shows.
+
+Cells are always stored as strings, in a canonical form:
+
+| Kind | Stored value | Displayed |
+|---|---|---|
+| `gcText` | the text | the text |
+| `gcNumber` | `"1250.5"` | formatted with `decimals` (`-1` = as stored), right-aligned |
+| `gcDate` | `"YYYYMMDD"` | `YYYY-MM-DD` |
+| `gcCheck` | `"1"` / `"0"` | a check box |
+| `gcCombo` | the chosen item | the item and a drop-down arrow |
+| `gcImage` | an image file path (BMP, or PNG/JPG with `-d:sdlimage`) | the image, fitted |
+| `gcButton` | any value | a button (caption = `gridSetButtonCaption`, or the value) |
+
+### 11.2 Reading and writing cells and lines
+
+```nim
+echo gridCell(grid, 2, "customer")          # by column name
+echo gridCell(grid, 2, 2)                   # by column index
+gridSetCell(grid, 2, "amount", "410.00")    # programmatic: no evChange, as in WINDEV
+echo gridLine(grid, 1)                      # @["1", "Alice Smith", ...]
+echo gridCount(grid), " lines, ", gridColumnCount(grid), " columns"
+
+gridInsertLine(grid, 1, "0", "First!", "Nantes", "20260901", "10", "1", "", "")
+gridModifyLine(grid, 3, "3", "Carol Brown", "Nantes", "20260911", "780", "1", "", "")
+gridDeleteLine(grid, 2)
+gridDeleteAll(grid)
+```
+
+Columns can also be changed after creation: `gridDeleteColumn`, `gridSetChoices`, `gridSetDecimals`, `gridSetButtonCaption`.
+
+### 11.3 Columns are sub-controls
+
+Because each column has a `ControlId`, the generic properties of step 4 work on it directly:
+
+```nim
+let colAmount = gridColumn(grid, "amount")    # or gridColumn(grid, 5)
+colAmount.caption = "Amount (€)"              # header title
+colAmount.width = 140                         # column width
+colAmount.visible = false                     # hide the column
+colAmount.state = csGrayed                    # grayed: read-only and dimmed
+colAmount.color = hex"#005FB8"                # header text color
+echo controlType(colAmount)                   # "Grid Column"
+```
+
+Equivalent grid functions exist: `gridShowColumn(grid, "date", false)`, `gridSetColumnWidth(grid, "customer", 220)`, `gridMoveColumn(grid, "amount", 2)` (moves the column to the 2nd display position).
+
+The user can do the same with the mouse: drag a header to move a column, drag the edge of a header to resize it, click a header to sort (click again to reverse).
+
+### 11.4 Consultation or entry
+
+The edit mode is resolved from the most specific level: **cell → line → column → grid**. Each level is `emInherit` (ask the next level), `emReadOnly` or `emEditable`.
+
+```nim
+gridSetEditable(grid, true)                      # grid level: entry mode
+gridSetColumnEdit(grid, "id", emReadOnly)        # never edit the "#" column
+gridSetLineEdit(grid, 4, emReadOnly)             # line 4 is locked
+gridSetCellEdit(grid, 1, "paid", emEditable)     # this cell stays editable even in consultation
+```
+
+Image and button columns are never editable. A column whose `state` is not `csActive` is read-only.
+
+How the user edits:
+
+| Action | Effect |
+|---|---|
+| double-click, Enter or F2 | edit the current cell |
+| just start typing | replaces the cell content |
+| Enter | confirm |
+| Escape | cancel |
+| Up / Down while editing | confirm and move to the previous / next line |
+| click (or Space) on a check box | toggle it |
+| click the current cell of a combo column | opens the list of `choices` |
+
+To start editing from code: `gridStartEdit(grid, 3, "customer")`.
+
+### 11.5 Filling modes
+
+| Mode | Meaning |
+|---|---|
+| `fmProgrammed` (default) | lines only come from your code |
+| `fmManual` | the user can also add a line (Insert key) and delete the selected lines (Delete key) |
+| `fmAutomatic` | a CSV / JSON import creates the missing columns automatically |
+
+Set it with `newGrid(fillMode = fmManual)` or `gridSetFillMode(grid, fmManual)`. An empty grid always creates its columns on import, whatever the mode.
+
+### 11.6 Selection
+
+```nim
+let first = gridSelect(grid)          # 1-based index of the first selected line, -1 if none
+let second = gridSelect(grid, 2)      # 2nd selected line
+echo gridSelectCount(grid)
+gridSelectPlus(grid, 5)               # select line 5 (added to the selection in multi mode)
+gridSelectMinus(grid, 5)
+gridSelectAll(grid)
+echo grid.value                       # current line, like any list control
+echo gridCurrentColumn(grid)          # current column
+```
+
+With `multiSelection = true`, Ctrl-click toggles a line, Shift-click and Shift+arrows select a range, Ctrl+A selects everything (Cmd on macOS).
+
+### 11.7 Events
+
+The grid emits its events on its own id. `ev.index` is the line and `ev.column` the column (both 1-based, 0 = none):
+
+| Event | When |
+|---|---|
+| `evSelection` | the current line changes |
+| `evChange` | the user modified a cell (`ev.text` = new value). `ev.column = 0` means lines were inserted or deleted by the user |
+| `evValidate` | a modified line is left, Enter is pressed on it, or the grid loses the focus |
+| `evClick`, `evDoubleClick`, `evRightClick`... | generic mouse events, which also carry `index` and `column` (`index = 0` on the header) |
+
+Typical handler:
+
+```nim
+proc handler(ev: var Event) {.nimcall, gcsafe.} =
+  if ev.id != grid or ev.current != ev.id: return
+  case ev.kind
+  of evChange:
+    if ev.column > 0:
+      echo "Cell ", ev.index, "/", gridColumn(grid, ev.column).caption, " = ", ev.text
+  of evValidate:
+    echo "Save line ", ev.index, ": ", gridLine(grid, ev.index)
+  of evClick:
+    if ev.index > 0 and ev.column == gridColumnIndex(grid, "action"):
+      echo "Details button of ", gridCell(grid, ev.index, "customer")
+  of evRightClick:
+    if ev.index > 0:
+      openContextMenu(grid, ["Duplicate", "Delete"])
+  else: discard
+```
+
+`evValidate` is the natural place to write a line back to a database.
+
+### 11.8 Sorting and searching
+
+```nim
+gridSort(grid, "amount", ascending = false)       # also: click the header
+
+let r = gridSeek(grid, "customer", "bob jones")   # exact, case-insensitive; -1 if not found
+let r2 = gridSeek(grid, "customer", "smi", exact = false, start = 3)
+
+let found = gridFind(grid, "Lyon")                # any visible column, selects the line
+if found.row > 0:
+  echo "line ", found.row, ", column ", found.column
+```
+
+Numbers and check boxes sort numerically, everything else alphabetically (case-insensitive). The sort is stable.
+
+### 11.9 Footers and aggregates
+
+```nim
+gridSetFooter(grid, "amount", fkSum)          # fkSum, fkAverage, fkMin, fkMax, fkCount
+gridSetFooter(grid, "customer", fkCount)      # counts non-empty cells
+echo gridFooterValue(grid, "amount")                    # the footer's value
+echo gridFooterValue(grid, "amount", fkAverage)         # any other aggregate, on demand
+```
+
+The footer line appears as soon as one visible column has a footer kind.
+
+### 11.10 Conditional formatting
+
+```nim
+# green background on the amount cell when it exceeds 1000
+gridAddFormat(grid, "amount", coGreater, "1000", background = hex"#DFF6DD")
+
+# the whole line in red when the order is not paid
+gridAddFormat(grid, "paid", coEquals, "0", text = hex"#C42B1C", wholeRow = true)
+
+# explicit colors for one cell
+gridSetCellColor(grid, 2, "city", background = hex"#FFF4CE")
+
+gridClearFormats(grid)
+```
+
+Operators: `coEquals`, `coNotEquals`, `coLess`, `coLessOrEqual`, `coGreater`, `coGreaterOrEqual`, `coContains`, `coEmpty`, `coNotEmpty`. The comparison is numeric when both values are numbers, otherwise case-insensitive text. Rules are applied in order (later rules win); explicit cell colors win over rules.
+
+### 11.11 Breaks (grouping)
+
+```nim
+gridSetBreak(grid, "city")     # group by city
+gridSetBreak(grid, "")         # (or 0) remove the break
+```
+
+With a break, the lines are kept sorted by the break column first, then by the current sort column. Each group starts with a break line showing the value and the number of lines, plus the group aggregate of every column that has a footer kind.
+
+### 11.12 Import and export (CSV, JSON)
+
+```nim
+# CSV - RFC 4180 (quoted fields, doubled quotes); the header line holds the column names
+let csv = gridToCsv(grid)                      # sep = ',', header = true
+discard gridSaveCsv(grid, "orders.csv", sep = ';')
+let n = gridLoadCsv(grid, "orders.csv", sep = ';')        # lines read, -1 if unreadable
+discard gridFromCsv(grid, "id,customer\n9,Zoe\n", append = true)
+
+# JSON - an array of objects keyed by column name
+let js = gridToJson(grid)                      # pretty = true
+discard gridSaveJson(grid, "orders.json")
+let m = gridLoadJson(grid, "orders.json")      # -1 if the file or the JSON is invalid
+```
+
+On import, columns are matched by name (or title), or by position for a CSV without header. Missing columns are created when the grid is empty or in `fmAutomatic` mode, with their kind guessed from the data (numbers, booleans → check boxes, otherwise text). Numbers and check boxes keep their JSON type on export, and a JSON import also accepts `{"rows": [...]}` or arrays of arrays.
+
+The fastest way to show a data file is therefore:
+
+```nim
+let g = win.addChild(newGrid(fillMode = fmAutomatic))
+discard gridLoadCsv(g.id, "data.csv")          # columns created from the header
+```
+
+### 11.13 The complete example
+
+`examples/grid_demo.nim` puts everything together: typed columns, a toolbar (add, delete, sort, search, CSV / JSON export and import), switches for entry mode, grouping by city and showing the date column, footers, conditional formatting, and a button column.
+
+```bash
+nimble grid      # or: nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/grid_demo.nim
+```
+
+---
+
+## Step 12 - Scrollable panels
+
+A `Panel` is a container that **scrolls** instead of squeezing its content. Its children, whether simple controls or whole nested layouts, keep their **natural size**. A vertical scrollbar (for the height) and a horizontal one (for the width) give access to what does not fit.
+
+```nim
+import src/wdgui
+
+let win = newWindow("Panel", 600, 400)
+let panel = win.addChild(newPanel(lkGrid, columns = 12))   # any layout of step 3
+panel.weight = 1                                           # give the panel the free space
+panel.framed = true                                        # optional border
+for i in 1 .. 144:
+  let b = panel.addChild(newButton("Button " & $i))
+  b.fixedWidth = 110
+runApplication()
+```
+
+`newPanel(layout = lkVertical, scrollbars = smAlways, margin = -1, spacing = -1, columns = 2)` takes the same layout parameters as `newContainer`. A panel asks for little space itself, at most 400 × 300. Give it a `weight`, a `dock` or a fixed size.
+
+### 12.1 macOS scrollbars
+
+On every platform, the scrollbars look and behave like macOS ones:
+
+| Behaviour | Detail |
+|---|---|
+| Proportional thumb | thumb length = track length × visible size / content size |
+| Drag the thumb | scrolls continuously |
+| Click the track | jumps one page (90 % of the visible size) |
+| Alt/Option-click the track | jumps to the clicked spot (macOS "Jump to the spot clicked") |
+| Wheel, trackpad | smooth scrolling on both axes; Shift+wheel scrolls horizontally |
+| Nested panels | the innermost panel scrolls first; at its limit the parent takes over |
+| Focus | tabbing into a hidden child scrolls it into view |
+
+Three display modes, like the macOS "Show scroll bars" setting:
+
+| Mode | Appearance |
+|---|---|
+| `smAlways` (default) | the bars are always visible and take their own 15 px: light track, gray pill thumb that darkens on hover |
+| `smAutomatic` | overlay bars that take no space: they appear while scrolling, fade out about a second later, and widen (with their track) when pointed at |
+| `smHidden` | no bars; the content still scrolls with the wheel or the trackpad |
+
+A bar is only shown when the content is larger than the panel in that direction. Colors follow the theme's light or dark mode.
+
+```nim
+let p = win.addChild(newPanel(lkVertical, scrollbars = smAutomatic))
+# or later, from any thread:
+panelSetScrollbars(p.id, smHidden)
+```
+
+### 12.2 Scrolling from code
+
+```nim
+panelScrollTo(panelId, 0, 0)             # top-left
+panelScrollTo(panelId, 1e9, 1e9)         # bottom-right (values are clamped)
+panelScrollBy(panelId, 0, 200)           # 200 px down
+echo panelScrollPosition(panelId)        # (x: ..., y: ...)
+echo panelContentSize(panelId)           # natural size of the content
+echo panelViewportSize(panelId)          # visible part
+panelEnsureVisible(panelId, someChildId) # scroll until a descendant is visible
+```
+
+The wheel step is the `lineStep` field (40 px per notch by default).
+
+### 12.3 Nesting
+
+Panels can contain any layout, including other panels:
+
+```nim
+let outer = win.addChild(newPanel(lkVertical))
+outer.weight = 1
+let inner = outer.addChild(newPanel(lkVertical))
+inner.fixedWidth = 360          # a nested panel needs a size, otherwise
+inner.fixedHeight = 180         # it would grow to its content
+for i in 1 .. 20:
+  discard inner.addChild(newEdit("Field " & $i))
+```
+
+A `Grid`, `ListBox`, `TableControl` or multiline `Edit` inside a panel keeps its own internal scrolling; the panel scrolls only when the pointer is outside them or when they reach their limit.
+
+`examples/panel_demo.nim` shows two side-by-side panels (a 12 × 12 grid of buttons, a 1200 px wide image and a nested panel), the three modes and the API.
+
+```bash
+nimble panel     # or: nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/panel_demo.nim
+```
+
+To create your own scrollable or composite containers, `Container` has three overridable hooks: `hitChildren(k, x, y)` keeps areas for the container itself, `drawOverlay(k, d, t)` draws above the children, and `onDescendantFocus(k, c)` reacts when a child gets the focus. A control can also set `win.animating = true` while drawing to request another frame, which is how the scrollbars fade out.
+
+---
+
+## Step 13 - Putting it together
 
 `examples/demo.nim` combines everything above: a menu bar, a toolbar, five tab pages with every control, live theme switching (combo + dark switch in the status bar), a long process updating a progress bar, a context menu on the list, and propagation to a cell. Read it top to bottom; it is written to be copied from.
 
 ```bash
 nimble demo      # or: nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/demo.nim
 nimble custom    # the custom-control example
+nimble grid      # the Grid control
+nimble panel     # scrollable panels
 ```
 
 ---
@@ -551,6 +911,8 @@ nimble custom    # the custom-control example
 | `'handler' is not GC-safe` | the handler must be `{.nimcall, gcsafe.}` and only touch globals of plain types (e.g. `ControlId`), or wrap access in `{.cast(gcsafe).}` with your own locking. |
 | Events handled out of order | set `dispatchMode = dmSequential`. |
 | Window does not appear on macOS | call `runApplication()` from the main thread (top-level code or `main()`). |
+| A grid cell cannot be edited | check the resolution order cell → line → column → grid (`gridSetEditable`, `gridSetColumnEdit`...); image and button columns and grayed columns are never editable. |
+| A panel shows no scrollbar | its content fits, or the panel grew to its content: give it a `weight`, a `dock` or a fixed size. |
 | A setter seems ignored | check the id belongs to the right kind of control: the id API silently ignores mismatched types (e.g. `listAdd` on a button). |
 
 ## WD-style → wdgui cheat sheet
@@ -564,7 +926,7 @@ nimble custom    # the custom-control example
 | Sélecteur | Radio Button | `newRadioButton` |
 | Liste | List Box | `newListBox` |
 | Combo | Combo Box | `newComboBox` |
-| Table | Table | `newTable` |
+| Table | Table | `newTable` (simple) or `newGrid` (full) |
 | Arbre | TreeView | `newTreeView` |
 | Zone répétée | Looper | `newLooper` |
 | Onglet | Tab | `newTab` / `addPage` |
@@ -589,6 +951,10 @@ nimble custom    # the custom-control example
 | Diagramme de Gantt | Gantt Chart | `newGantt` |
 | ListeAjoute / ListAdd | | `listAdd` |
 | TableAjouteLigne / TableAddLine | | `tableAddLine` |
+| TableAjouteLigne on a full table | TableAddLine | `gridAddLine` |
+| TableCherche / TableSeek | | `gridSeek` |
+| TableTrie / TableSort | | `gridSort` |
+| ..Rupture / Break | | `gridSetBreak` |
 | ArbreAjoute / TreeAdd | | `treeAdd` |
 | grAjouteDonnée / grAddData | | `grAddData` |
 | DonneFocus / SetFocus | | `setFocus` |

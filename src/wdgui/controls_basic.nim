@@ -1009,6 +1009,7 @@ type
   ShapeKind* = enum
     skRectangle = "Rectangle", skRoundRect = "RoundRect", skEllipse = "Ellipse",
     skHLine = "HorizontalLine", skVLine = "VerticalLine", skDiagonal = "Diagonal"
+
   Shape* = ref object of Control
     shapeKind*: ShapeKind
     thickness*: float
@@ -1052,6 +1053,7 @@ method draw*(c: Shape, d: Drawing, t: Theme) =
 type
   ImageMode* = enum
     imCenter = "Centered", imStretch = "Stretched", imFit = "Fit (keep ratio)"
+
   Image* = ref object of Control
     path*: string
     mode*: ImageMode

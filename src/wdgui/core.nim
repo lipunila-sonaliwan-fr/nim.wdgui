@@ -125,6 +125,7 @@ type
     hoverSince*: uint64
     tooltipShown*: bool
     caretVisible*: bool
+    animating*: bool          # set during draw by a control that needs another frame (fades…)
 
 var
   guiLock*: Lock
@@ -504,10 +505,19 @@ method preferredSize*(k: Container, d: Drawing, t: Theme): tuple[w, h: float] =
 
 # tree: drawing, hit testing
 
+# Containers may keep some areas for themselves (e.g. a panel's scrollbars).
+method hitChildren*(k: Container, x, y: float): bool {.base.} = true
+
+# Drawn after (over) the children, inside the container's clip.
+method drawOverlay*(k: Container, d: Drawing, t: Theme) {.base.} = discard
+
+# Called on every ancestor when a descendant receives the focus (e.g. to scroll it into view).
+method onDescendantFocus*(k: Container, c: Control) {.base.} = discard
+
 proc controlAt*(c: Control, x, y: float): Control =
   # Deepest visible control under point (x, y).
   if c == nil or not c.visible or not c.rect.containsPoint(x, y): return nil
-  if c of Container:
+  if c of Container and Container(c).hitChildren(x, y):
     let k = Container(c)
     for i in countdown(k.children.high, 0):
       if k.childShown(i):
@@ -522,7 +532,9 @@ proc drawTree*(c: Control, d: Drawing, t: Theme) =
     let k = Container(c)
     d.pushClip(k.rect)
     for i, e in k.children:
-      if k.childShown(i): drawTree(e, d, t)
+      if k.childShown(i) and e.rect.intersect(k.rect).w > 0 and e.rect.intersect(k.rect).h > 0:
+        drawTree(e, d, t)
+    k.drawOverlay(d, t)
     d.popClip()
 
 # focus and popups
@@ -539,6 +551,10 @@ proc setFocusInternal*(f: Window, c: Control) =
     c.focus = true
     c.onFocus(true)
     emit(c, evFocusGained)
+    var p = c.parent
+    while p != nil:
+      p.onDescendantFocus(c)
+      p = p.parent
   f.dirty = true
 
 proc collectFocusables(c: Control, acc: var seq[Control]) =

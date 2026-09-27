@@ -37,9 +37,11 @@ The UI thread reads SDL events, updates the visual state of controls and pushes 
 
 Basic: Label (and link), Button (default, cancel, flat), Check Box (boxes or switch; value is a bit mask), Radio Button, Edit (text, integer, real, password, multiline, placeholder, clipboard), Spin, Progress Bar, Slider, Range Slider, Scrollbar, Rating, Shape, Image, Bar Code (Code 39).
 
-Containers: Supercontrol, Cell, Tab, Splitter, Toolbar, with seven layouts (absolute, vertical, horizontal, grid, flow, border, stack).
+Containers: Supercontrol, Cell, Tab, Splitter, Toolbar, Panel (scrollable, macOS-style scrollbars: always, automatic overlay or hidden), with seven layouts (absolute, vertical, horizontal, grid, flow, border, stack).
 
 Lists: List Box (multi-selection), Combo Box, Table (header sorting, resizable columns), TreeView, Looper, Menu bar and context menus.
+
+Data grid: Grid, a full data-entry table: typed columns (text, number, date, image, button, combo, check box) that are sub-controls, consultation or entry at grid / column / line / cell level, single or multiple selection, sorting, search, hidden / moved / resized columns, conditional formatting, breaks, footer aggregates, CSV and JSON import / export.
 
 Charts and planning: Chart (column, line, area, pie), Calendar (value `"YYYYMMDD"`), Kanban (drag and drop), TreeMap, Gantt Chart.
 
@@ -62,11 +64,14 @@ src/wdgui/core.nim               Control, Container, Window, events, layouts, fo
 src/wdgui/controls_basic.nim     basic controls and containers
 src/wdgui/controls_lists.nim     list-type controls and popups
 src/wdgui/controls_charts.nim    chart, calendar, kanban, treemap, gantt
+src/wdgui/controls_grid.nim      the Grid control and its grid… API
+src/wdgui/controls_panel.nim     the scrollable Panel and its panel… API
 src/wdgui/application.nim        UI loop and threaded dispatcher
 src/wdgui/api.nim                id-based WD-style API
-examples/demo.nim                tour of the main control
-examples/custom_demo.nim         subclassing example
-examples/grid_demo.nim           **new** grid control
+examples/demo.nim                tour of every control
+examples/custom_control.nim      subclassing example
+examples/grid_demo.nim           the Grid control
+examples/panel_demo.nim          scrollable panels
 ```
 
 ## Known limitations

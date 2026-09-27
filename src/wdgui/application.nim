@@ -167,6 +167,7 @@ proc drawTooltip(f: Window, d: Drawing, t: Theme) =
   d.textIn(r, c.tooltip, t.text, alCenter)
 
 proc drawWindow(f: Window) =
+  f.animating = false
   let d = f.drawing
   let t = f.theme
   d.configure(t)
@@ -186,10 +187,8 @@ proc drawWindow(f: Window) =
     elif f.tooltipShown and f.hoveredControl != nil and f.hoveredControl.tooltip.len > 0: drawTooltip(f, d, t)
     d.restoreClip(saved)
   discard SDL_RenderPresent(f.sdlRen)
-  f.dirty = false
-
+  f.dirty = f.animating      # a control asked for another frame (animation)
 # SDL event translation
-
 proc handleEvent(e: var SDL_Event) =
   let typ = cast[ptr SDL_CommonEvent](addr e).typ
   let mods = SDL_GetModState()
