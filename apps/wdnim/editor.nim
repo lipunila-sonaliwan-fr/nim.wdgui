@@ -3,7 +3,7 @@
 #
 # * a tab strip (one tab per open document, modified dot, close box);
 # * a 5-character line-number column: for multiples of 10, line/1000 left-aligned
-#   ("0.010", "1.230"); for the other lines, line mod 1000 right-aligned ("  231");
+#   ("0    "); for the other lines, line mod 1000 right-aligned ("  231");
 # * a Control Structure Diagram gutter in the spirit of jGRASP: every routine, branch,
 #   loop, case, try or block is drawn as a vertical bar spanning its body, with a glyph
 #   telling the kind of processing (box = routine, diamond = decision, loop ring = loop,
@@ -12,7 +12,7 @@
 # * a minimap of the whole document on the right.
 #
 # Document operations are thread-safe through the `editor...` procedures at the end.
-import std/[strutils, unicode, tables, os, math, sequtils]
+import std/[strutils, unicode, tables, os, math, sequtils, streams]
 import ../../src/sdl3
 import ../../src/wdgui
 import nimlexer
@@ -68,6 +68,13 @@ type
     dragging, draggingMini: bool
     hoverTab, hoverClose: int
     untitledCount: int
+
+const ImageExts = [
+  ".png", ".jpg", ".jpeg",
+  ".gif", ".bmp", ".webp",
+  ".tif", ".tiff", ".ico",
+  ".avif"
+]
 
 const
   tabBarH = 34.0
@@ -724,7 +731,7 @@ method draw*(ed: CodeEditor, d: Drawing, t: Theme) =
   ed.runPending()
   let colors = colorsFor(t)
   let r = ed.rect
-  # ---- tab strip
+  # tab strip.
   d.fillRect(rect(r.x, r.y, r.w, tabBarH), colors.tabBar)
   d.fillRect(rect(r.x, r.y + tabBarH - 1, r.w, 1), colors.separator)
   if not ed.hovered:
@@ -1091,9 +1098,44 @@ proc editorNewDocument*(id: ControlId): string =
     result = d.title
     ed.notifyCursor()
 
+proc isImageFile(path: string): bool =
+  if not fileExists(path):
+    return false
+  if path.splitFile.ext.toLowerAscii in ImageExts:
+    return true
+  let f = newFileStream(path, fmRead)
+  if f.isNil:
+    return false
+  defer: f.close()
+  var magic: array[12, uint8]
+  discard f.readData(addr magic[0], magic.len)
+  # PNG
+  if magic[0..7] == [
+      0x89'u8, 0x50, 0x4E, 0x47,
+      0x0D, 0x0A, 0x1A, 0x0A]:
+    return true
+  # JPEG
+  if magic[0] == 0xFF and
+      magic[1] == 0xD8 and
+      magic[2] == 0xFF:
+    return true
+  # GIF
+  if cast[string](magic[0..5]) in ["GIF87a"]:
+    return true
+  # BMP
+  if magic[0] == 'B'.uint8 and magic[1] == 'M'.uint8:
+    return true
+  # WEBP : "RIFF....WEBP"
+  if cast[string](magic[0..3]) == "RIFF" and
+      cast[string](magic[8..11]) == "WEBP":
+    return true
+  false
+
 proc editorOpenFile*(id: ControlId, path: string): bool =
   # Opens a file (or switches to it when it is already open).
   let full = normalizedPath(absolutePath(path))
+  if isImageFile(full):
+    return false
   var content = ""
   try:
     content = readFile(full)
