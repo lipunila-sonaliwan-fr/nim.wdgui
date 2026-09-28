@@ -15,7 +15,7 @@
 import std/[strutils, unicode, tables, os, math, sequtils, streams]
 import ../../src/sdl3
 import ../../src/wdgui
-import nimlexer
+import nimlexer, lsptypes
 
 type
   Snapshot = object
@@ -35,9 +35,9 @@ type
     path*: string
     title*: string
     lines*: seq[string]
-    line*, col*: int             # cursor (col = byte offset)
-    ancLine*, ancCol*: int       # selection anchor
-    scroll*: float               # first visible line
+    line*, col*: int             # cursor (col = byte offset).
+    ancLine*, ancCol*: int       # selection anchor.
+    scroll*: float               # first visible line.
     scrollX*: float
     modified*: bool
     undoStack, redoStack: seq[Snapshot]
@@ -47,12 +47,20 @@ type
     csd: seq[CsdBlock]
     maxLevel: int
     analyzed: bool
+    diags*: seq[Diagnostic]      # from the language server (rune columns).
 
   EditorColors = object
     bg, gutter, gutterText, gutterMajor, currentLine, selection, caret, tabBar, tabActive,
       tabText, tabTextActive, minimapBg, minimapView, separator: Color
     tok: array[TokKind, Color]
     csd: array[CsdKind, Color]
+
+  CompletionState = object
+    active: bool
+    items: seq[CompletionItem]
+    shown: seq[int]
+    selected, scroll: int
+    line, startCol: int
 
   CodeEditor* = ref object of Control
     docs*: seq[Document]
@@ -68,6 +76,11 @@ type
     dragging, draggingMini: bool
     hoverTab, hoverClose: int
     untitledCount: int
+    comp: CompletionState        # completion popup.
+    compRect: Rect
+    infoText: string             # hover / signature bubble.
+    suppressSpace: bool
+
 
 const ImageExts = [
   ".png", ".jpg", ".jpeg",
@@ -451,6 +464,7 @@ proc deleteForward(doc: Document) =
   doc.changed()
 
 # find / replace in a document.
+
 proc sameText(a, b: string, matchCase: bool): bool =
   if matchCase: a == b else: cmpIgnoreCase(a, b) == 0
 
@@ -506,6 +520,7 @@ proc replaceAll*(doc: Document, req: FindRequest): int =
     doc.changed()
 
 # control: geometry.
+
 proc newCodeEditor*(): CodeEditor =
   result = CodeEditor(showMinimap: true, showCsd: true, fontSize: 14, charW: 9, lineH: 19,
                       hoverTab: -1, hoverClose: -1, current: -1)
@@ -563,10 +578,11 @@ proc notifyCursor(ed: CodeEditor) =
   if d == nil: return
   emit(ed, evSelection, index = d.line + 1, column = runeCol(d.lines[d.line], d.col) + 1)
 
-proc notifyChange(ed: CodeEditor) =
+proc notifyChange(ed: CodeEditor, trigger = "") =
+  # evChange; `trigger` = "complete" or "signature" asks the application for LSP help.
   let d = ed.doc
   if d == nil: return
-  emit(ed, evChange, index = d.line + 1, column = runeCol(d.lines[d.line], d.col) + 1)
+  emit(ed, evChange, index = d.line + 1, column = runeCol(d.lines[d.line], d.col) + 1, text = trigger)
 
 proc tabRects(ed: CodeEditor, d: Drawing): seq[Rect] =
   var x = ed.rect.x + 6
@@ -712,6 +728,78 @@ proc drawWelcome(ed: CodeEditor, d: Drawing, t: Theme, colors: EditorColors) =
     d.textIn(rect(b.x, y, b.w, t.lineHeight), s, c, alCenter)
     y += t.lineHeight
 
+proc severityColor(sev: int): Color =
+  case sev
+  of 1: hex"#F14C4C"
+  of 2: hex"#E5A33B"
+  of 3: hex"#3E9BFF"
+  else: hex"#8C8F96"
+
+let badgeColors = [hex"#61AFEF", hex"#D19A66", hex"#56B6C2", hex"#E5C07B", hex"#9DA5B4", hex"#C678DD"]
+
+proc drawCompletion(ed: CodeEditor, d: Drawing, t: Theme, colors: EditorColors) =
+  let doc = ed.doc
+  let c = ed.comp
+  ed.compRect = rect(0, 0, 0, 0)
+  if doc == nil or not c.active or c.shown.len == 0 or c.line > doc.lines.high: return
+  let rowH = t.lineHeight
+  let rows = min(10, c.shown.len)
+  let w = 520.0
+  let footer = rowH + 4
+  let h = float(rows) * rowH + 8 + footer
+  var x = ed.codeRect.x + 6 + float(runeCol(doc.lines[c.line], c.startCol)) * ed.charW - doc.scrollX - 30
+  var y = ed.lineY(doc.line) + ed.lineH + 2
+  if y + h > ed.rect.y + ed.rect.h: y = ed.lineY(doc.line) - h - 2
+  x = clamp(x, ed.rect.x + 4, max(ed.rect.x + 4, ed.rect.x + ed.rect.w - w - 4))
+  let r = rect(x, y, w, h)
+  ed.compRect = r
+  d.shadow(r, 8, t.shadow)
+  d.fillRoundRect(r, 8, colors.separator)
+  d.fillRoundRect(r.shrink(1), 7, t.surface)
+  for k in 0 ..< rows:
+    let idx = c.scroll + k
+    if idx >= c.shown.len: break
+    let it = c.items[c.shown[idx]]
+    let ry = y + 4 + float(k) * rowH
+    let rr = rect(x + 4, ry, w - 8, rowH)
+    if idx == c.selected: d.fillRoundRect(rr, 5, t.selection)
+    let (letter, hue) = kindBadge(it.kind)
+    let bc = badgeColors[hue mod badgeColors.len]
+    let br = rect(rr.x + 6, ry + (rowH - 18) / 2, 18, 18)
+    d.fillRoundRect(br, 4, bc.withAlpha(60))
+    d.textIn(br, letter, bc, alCenter)
+    let labelW = min(rr.w * 0.55, d.textWidth(it.label) + 8)
+    d.textIn(rect(rr.x + 32, ry, labelW, rowH), it.label,
+             (if idx == c.selected: t.textSelection else: t.text))
+    d.textIn(rect(rr.x + 40 + labelW, ry, rr.w - labelW - 48, rowH), it.detail, t.textSecondary, alRight)
+  # details of the selected item.
+  let sel = c.items[c.shown[c.selected]]
+  var info = if sel.documentation.len > 0: sel.documentation.splitLines()[0] else: sel.detail
+  let fy = y + h - footer
+  d.fillRect(rect(x + 1, fy, w - 2, 1), colors.separator)
+  d.textIn(rect(x + 10, fy + 2, w - 20, footer - 2), info, t.textSecondary)
+
+proc drawInfo(ed: CodeEditor, d: Drawing, t: Theme, colors: EditorColors) =
+  let doc = ed.doc
+  if doc == nil or ed.infoText.len == 0: return
+  var lines = ed.infoText.splitLines()
+  if lines.len > 8: lines.setLen(8)
+  var w = 0.0
+  for l in lines: w = max(w, d.textWidth(l))
+  w = min(ed.codeRect.w - 20, w + 24)
+  let h = float(lines.len) * t.lineHeight + 12
+  var x = ed.codeRect.x + 6 + float(runeCol(doc.lines[doc.line], doc.col)) * ed.charW - doc.scrollX - 20
+  x = clamp(x, ed.rect.x + 4, max(ed.rect.x + 4, ed.rect.x + ed.rect.w - w - 4))
+  var y = ed.lineY(doc.line) - h - 4
+  if y < ed.bodyRect.y: y = ed.lineY(doc.line) + ed.lineH + 4
+  let r = rect(x, y, w, h)
+  d.shadow(r, 6, t.shadow)
+  d.fillRoundRect(r, 6, t.accent.withAlpha(140))
+  d.fillRoundRect(r.shrink(1), 5, t.surface)
+  for i, l in lines:
+    d.textIn(rect(x + 12, y + 6 + float(i) * t.lineHeight, w - 24, t.lineHeight), l,
+             (if i == 0: t.text else: t.textSecondary))
+
 method preferredSize*(ed: CodeEditor, d: Drawing, t: Theme): tuple[w, h: float] = (600.0, 400.0)
 
 method typeName*(ed: CodeEditor): string = "CodeEditor"
@@ -806,14 +894,55 @@ method draw*(ed: CodeEditor, d: Drawing, t: Theme) =
       let piece = s[tk.start ..< tk.start + tk.len]
       if x + float(piece.runeLen) * ed.charW < c.x: continue
       ed.monoText(d, x, y, piece, colors.tok[tk.kind])
+  # diagnostics: wavy underline under the faulty range.
+  for dg in doc.diags:
+    if dg.endLine < first or dg.line > last: continue
+    let col = severityColor(dg.severity)
+    for l in max(dg.line, first) .. min(dg.endLine, last):
+      if l > doc.lines.high: break
+      let s = doc.lines[l]
+      var a = if l == dg.line: dg.col else: 0
+      var z = if l == dg.endLine: dg.endCol else: s.runeLen
+      if z <= a:                                        # empty range: underline the word
+        var bz = byteCol(s, a)
+        while bz < s.len and s[bz].isWordChar: inc bz
+        z = max(a + 1, runeCol(s, bz))
+      let x1 = c.x + 6 + float(a) * ed.charW - doc.scrollX
+      let x2 = c.x + 6 + float(z) * ed.charW - doc.scrollX
+      let yb = ed.lineY(l) + lh - 3
+      var x = x1
+      var up = true
+      while x < x2:
+        let nx = min(x2, x + 2.5)
+        d.line(x, (if up: yb else: yb - 2), nx, (if up: yb - 2 else: yb), col, 1.2)
+        x = nx
+        up = not up
   if ed.focus and ed.win != nil and ed.win.caretVisible:
     let cx = c.x + 6 + float(runeCol(doc.lines[doc.line], doc.col)) * ed.charW - doc.scrollX
     d.fillRect(rect(cx - 1, ed.lineY(doc.line) + 1, 2, lh - 2), colors.caret)
   d.popClip()
+  # diagnostic markers in the gutter.
+  d.pushClip(rect(gx, b.y, ed.numbersW, b.h))
+  for dg in doc.diags:
+    if dg.line < first or dg.line > last: continue
+    d.fillRoundRect(rect(gx + 1, ed.lineY(dg.line) + 3, 3, lh - 6), 1.5, severityColor(dg.severity))
+  d.popClip()
   # minimap and scroll indicator.
-  if ed.showMinimap: ed.drawMinimap(d, doc, colors)
+  if ed.showMinimap:
+    ed.drawMinimap(d, doc, colors)
+    let m = ed.minimapRect
+    let n = max(1, doc.lines.len)
+    for dg in doc.diags:
+      if dg.severity > 2: continue
+      let y = m.y + 4 + float(dg.line) / float(n) * (m.h - 8)
+      d.fillRect(rect(m.x + m.w - 5, y, 4, 3), severityColor(dg.severity))
   drawScrollIndicator(d, t, rect(c.x + c.w - 10, c.y, 8, c.h),
                       float(doc.lines.len + ed.visibleLines - 1), float(ed.visibleLines), doc.scroll)
+  # completion popup and information bubble (over everything).
+  d.pushClip(ed.rect)
+  ed.drawCompletion(d, t, colors)
+  ed.drawInfo(d, t, colors)
+  d.popClip()
 
 # control: input
 
@@ -862,6 +991,58 @@ proc switchTo(ed: CodeEditor, i: int) =
     ed.current = i
     ed.notifyCursor()
 
+proc wordStart(doc: Document): int =
+  result = doc.col
+  let s = doc.lines[doc.line]
+  while result > 0 and s[result - 1].isWordChar: dec result
+
+proc refilter(ed: CodeEditor) =
+  let doc = ed.doc
+  if doc == nil or doc.line != ed.comp.line or doc.col < ed.comp.startCol:
+    ed.comp.active = false
+    return
+  let prefix = doc.lines[doc.line][ed.comp.startCol ..< doc.col].toLowerAscii
+  var starts, inside: seq[int]
+  for i, it in ed.comp.items:
+    let l = it.label.toLowerAscii
+    if prefix.len == 0 or l.startsWith(prefix): starts.add i
+    elif l.contains(prefix): inside.add i
+  ed.comp.shown = starts & inside
+  ed.comp.selected = 0
+  ed.comp.scroll = 0
+  ed.comp.active = ed.comp.shown.len > 0 and
+    not (ed.comp.shown.len == 1 and ed.comp.items[ed.comp.shown[0]].label.toLowerAscii == prefix)
+
+proc moveSelection(ed: CodeEditor, delta: int) =
+  let n = ed.comp.shown.len
+  if n == 0: return
+  ed.comp.selected = clamp(ed.comp.selected + delta, 0, n - 1)
+  if ed.comp.selected < ed.comp.scroll: ed.comp.scroll = ed.comp.selected
+  if ed.comp.selected >= ed.comp.scroll + 10: ed.comp.scroll = ed.comp.selected - 9
+
+proc acceptCompletion(ed: CodeEditor) =
+  let doc = ed.doc
+  if doc == nil or not ed.comp.active or ed.comp.shown.len == 0: return
+  let it = ed.comp.items[ed.comp.shown[ed.comp.selected]]
+  let text = if it.insertText.len > 0: it.insertText else: it.label
+  doc.pushUndo()
+  doc.ancLine = doc.line
+  doc.ancCol = min(ed.comp.startCol, doc.col)
+  doc.insertText(text)
+  ed.comp.active = false
+  doc.wantCol = runeCol(doc.lines[doc.line], doc.col)
+  ed.ensureCursorVisible()
+  ed.notifyChange()
+  ed.notifyCursor()
+
+proc diagnosticAt(doc: Document, line, rcol: int): int =
+  for i, dg in doc.diags:
+    if line < dg.line or line > dg.endLine: continue
+    let a = if line == dg.line: dg.col else: 0
+    let z = if line == dg.endLine: max(dg.endCol, dg.col + 1) else: high(int)
+    if rcol >= a - 1 and rcol <= z + 1: return i
+  -1
+
 method onMouse*(ed: CodeEditor, e: MouseEvent) =
   if ed.win == nil: return
   let d = ed.win.drawing
@@ -887,6 +1068,14 @@ method onMouse*(ed: CodeEditor, e: MouseEvent) =
   let m = ed.minimapRect
   case e.action
   of maPress:
+    if ed.comp.active and ed.compRect.containsPoint(e.x, e.y):
+      let k = int((e.y - ed.compRect.y - 4) / ed.win.theme.lineHeight)
+      if k >= 0 and ed.comp.scroll + k < ed.comp.shown.len:
+        ed.comp.selected = ed.comp.scroll + k
+        ed.acceptCompletion()
+      return
+    ed.comp.active = false
+    ed.infoText = ""
     if ed.showMinimap and m.containsPoint(e.x, e.y):
       ed.draggingMini = true
     elif e.button == mbLeft:
@@ -911,9 +1100,11 @@ method onMouse*(ed: CodeEditor, e: MouseEvent) =
         doc.line = p.line
         doc.col = p.col
         if (e.mods and KMOD_SHIFT) == 0: doc.collapse()
-        ed.dragging = true
+        ed.dragging = (e.mods and KMOD_CMD) == 0
       doc.wantCol = runeCol(doc.lines[doc.line], doc.col)
       ed.notifyCursor()
+      if (e.mods and KMOD_CMD) != 0 and e.x >= ed.codeRect.x:     # Cmd/Ctrl+click: definition.
+        emit(ed, evClick, index = doc.line + 1, column = doc.wantCol + 1, text = "goto-definition")
   of maMove:
     if ed.draggingMini:
       let n = doc.lines.len
@@ -928,6 +1119,12 @@ method onMouse*(ed: CodeEditor, e: MouseEvent) =
       doc.col = p.col
       ed.ensureCursorVisible()
       ed.notifyCursor()
+    elif ed.codeRect.containsPoint(e.x, e.y) and doc.diags.len > 0:   # diagnostic tooltip
+      let p = ed.posFromPoint(e.x, e.y)
+      let i = diagnosticAt(doc, p.line, runeCol(doc.lines[p.line], p.col))
+      ed.tooltip = if i >= 0: severityName(doc.diags[i].severity) & ": " & doc.diags[i].message else: ""
+    else:
+      ed.tooltip = ""
   of maRelease:
     if ed.draggingMini:
       let n = doc.lines.len
@@ -953,12 +1150,25 @@ method onWheel*(ed: CodeEditor, dx, dy: float): bool =
 
 method onText*(ed: CodeEditor, s: string) =
   let doc = ed.doc
-  if doc == nil: return
+  if doc == nil or s.len == 0: return
+  if ed.suppressSpace and s == " ":          # Ctrl+Space already handled as "complete".
+    ed.suppressSpace = false
+    return
+  ed.suppressSpace = false
   doc.pushUndo(typing = true)
   doc.insertText(s)
   doc.wantCol = runeCol(doc.lines[doc.line], doc.col)
   ed.ensureCursorVisible()
-  ed.notifyChange()
+  let last = s[^1]
+  ed.infoText = ""
+  var trigger = ""
+  if ed.comp.active:
+    if last.isWordChar: ed.refilter()
+    else: ed.comp.active = false
+  if last == '.': trigger = "complete"
+  elif last == '(' or last == ',': trigger = "signature"
+  elif last.isWordChar and not ed.comp.active and doc.col - doc.wordStart >= 3: trigger = "complete"
+  ed.notifyChange(trigger)
   ed.notifyCursor()
 
 method onKey*(ed: CodeEditor, e: KeyEvent): bool =
@@ -967,6 +1177,37 @@ method onKey*(ed: CodeEditor, e: KeyEvent): bool =
   let shift = (e.mods and KMOD_SHIFT) != 0
   let cmd = (e.mods and KMOD_CMD) != 0
   let word = (e.mods and wordMod) != 0
+  if e.key >= 0x400000E0'u32 and e.key <= 0x400000E7'u32: return false   # modifier keys alone.
+  if ed.comp.active:
+    case e.key
+    of SDLK_UP:
+      ed.moveSelection(-1)
+      return true
+    of SDLK_DOWN:
+      ed.moveSelection(1)
+      return true
+    of SDLK_PAGEUP:
+      ed.moveSelection(-9)
+      return true
+    of SDLK_PAGEDOWN:
+      ed.moveSelection(9)
+      return true
+    of SDLK_RETURN, SDLK_KP_ENTER, SDLK_TAB:
+      ed.acceptCompletion()
+      return true
+    of SDLK_ESCAPE:
+      ed.comp.active = false
+      return true
+    of SDLK_BACKSPACE: discard                                    # refiltered below.
+    else: ed.comp.active = false
+  if e.key == SDLK_ESCAPE and ed.infoText.len > 0:
+    ed.infoText = ""
+    return true
+  if e.key == SDLK_SPACE and (e.mods and KMOD_CTRL) != 0:         # Ctrl+Space: suggestions.
+    ed.suppressSpace = true
+    ed.notifyChange("complete")
+    return true
+  if e.key notin [SDLK_LEFT, SDLK_RIGHT] or not shift: ed.infoText = ""
   var moved = true
   var edited = false
   case e.key
@@ -1012,7 +1253,7 @@ method onKey*(ed: CodeEditor, e: KeyEvent): bool =
       doc.col = 0
     else:
       let ind = leadingSpaces(doc.lines[doc.line])
-      doc.col = if doc.col == ind: 0 else: ind              # smart home
+      doc.col = if doc.col == ind: 0 else: ind                    # smart home.
     doc.wantCol = runeCol(doc.lines[doc.line], doc.col)
   of SDLK_END:
     if cmd: doc.line = doc.lines.high
@@ -1020,6 +1261,7 @@ method onKey*(ed: CodeEditor, e: KeyEvent): bool =
     doc.wantCol = runeCol(doc.lines[doc.line], doc.col)
   of SDLK_BACKSPACE:
     doc.backspace()
+    if ed.comp.active: ed.refilter()
     edited = true
   of SDLK_DELETE:
     doc.deleteForward()
@@ -1233,6 +1475,74 @@ proc editorSetOptions*(id: ControlId, minimap, csd: bool) =
 
 proc editorOptions*(id: ControlId): tuple[minimap, csd: bool] =
   readControl(id, CodeEditor, ed): result = (ed.showMinimap, ed.showCsd)
+
+proc editorShowCompletion*(id: ControlId, items: seq[CompletionItem]) =
+  ## Opens the completion popup at the cursor with the server's items (filtered by the
+  ## identifier being typed).
+  withControl(id, CodeEditor, ed):
+    let d = ed.doc
+    if d != nil and items.len > 0:
+      ed.comp = CompletionState(active: true, items: items, line: d.line, startCol: d.wordStart)
+      ed.refilter()
+
+proc editorShowInfo*(id: ControlId, text: string) =
+  ## Shows a bubble above the cursor (hover information, signature help); Esc closes it.
+  withControl(id, CodeEditor, ed): ed.infoText = text.strip
+
+proc editorSetDiagnostics*(id: ControlId, path: string, diags: seq[Diagnostic]) =
+  withControl(id, CodeEditor, ed):
+    for d in ed.docs:
+      if d.path == path: d.diags = diags
+
+proc editorTextOf*(id: ControlId, path: string): tuple[found: bool, text: string] =
+  ## Current text of the open document `path` (used to sync the language server).
+  readControl(id, CodeEditor, ed):
+    for d in ed.docs:
+      if d.path == path: return (true, d.lines.join("\n"))
+
+proc editorCursorPos*(id: ControlId): tuple[path: string, line, col: int] =
+  ## Path of the current document and cursor position (0-based line, character column).
+  readControl(id, CodeEditor, ed):
+    let d = ed.doc
+    if d != nil: result = (d.path, d.line, runeCol(d.lines[d.line], d.col))
+
+proc editorNextDiagnostic*(id: ControlId): string =
+  ## Moves to the next diagnostic after the cursor (wrapping); returns its message.
+  withControl(id, CodeEditor, ed):
+    let d = ed.doc
+    if d != nil and d.diags.len > 0:
+      var best = -1
+      for i, dg in d.diags:
+        if dg.line > d.line or (dg.line == d.line and dg.col > runeCol(d.lines[d.line], d.col)):
+          if best < 0 or dg.line < d.diags[best].line or
+             (dg.line == d.diags[best].line and dg.col < d.diags[best].col): best = i
+      if best < 0:
+        best = 0
+        for i, dg in d.diags:
+          if dg.line < d.diags[best].line: best = i
+      let dg = d.diags[best]
+      d.line = clamp(dg.line, 0, d.lines.high)
+      d.col = byteCol(d.lines[d.line], dg.col)
+      d.collapse()
+      ed.ensureCursorVisible()
+      ed.notifyCursor()
+      result = severityName(dg.severity) & ": " & dg.message
+
+proc editorSetText*(id: ControlId, path, text: string, modified = true): bool =
+  ## Replaces the text of the open document `path` (undoable); false if it is not open.
+  withControl(id, CodeEditor, ed):
+    for d in ed.docs:
+      if d.path == path:
+        d.pushUndo()
+        d.lines = newDocument("", text).lines
+        d.clampCursor()
+        d.collapse()
+        d.analyzed = false
+        d.modified = modified
+        if not modified: d.undoStack.setLen(0)
+        ed.notifyChange()
+        return true
+  false
 
 proc editorSelectTab*(id: ControlId, index: int) =
   withControl(id, CodeEditor, ed): ed.switchTo(index - 1)

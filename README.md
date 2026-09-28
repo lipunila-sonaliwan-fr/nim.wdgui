@@ -95,6 +95,23 @@ Sample app, what's about a Nim editor ?
 
 No anti-aliasing of shapes; bitmap font without `-d:sdlttf`; containers do not scroll (list-type controls do); no IME beyond SDL text input; no accessibility support. With the default thread-per-event mode, two close events may be handled out of order; use `dispatchMode = dmSequential` when order matters.
 
+## Version 1.4.2 Wahou...
+
++ LSP
+
+[![Buy Me a Coffee](lsp.png)](https://buymeacoffee.com/sonaliwan.fr)
+
++ Form designer & code generation
+
+[![Buy Me a Coffee](designer.png)](https://buymeacoffee.com/sonaliwan.fr)
+
+Originally, wdnim was supposed to be a demonstration project showcasing the use of the wdgui library and... I think I got a little carried away. After adding the code editor, I felt the urge to include a file tree, a minimap, a process diagram, server integration for error feedback, code completion, and so on... until I came up with a somewhat crazy idea: why not add a designer that generates code into a dedicated file for each form? And why not have it generate the event-handling code as well? Today, I have reached a stage where wdnim is beginning to become a serious alternative for anyone wanting to develop applications in Nim.
+
+When creating a new project, you need to copy the contents of src/wdgui into your project. The project therefore starts with sdl3.nim, wdgui.nim, the wdgui folder, and the linOS, macOS, or winOS folder corresponding to your environment. More experienced users can use Nimble to reference the wdgui package and configure a search path for locating the SDL3 library.
+
+Honestly, I never thought I would get this far in such a short time. Nim is truly a remarkable language, extraordinarily efficient both in its expressiveness and in its execution speed. I'll try to improve a few usability aspects here and there. I'm also wondering whether integrating a Firebird or DuckDB driver (or perhaps both?) along with a few database-oriented components would be a worthwhile addition, as would a report designer capable of printing or exporting reports to PDF.
+
+Ah... if only I could devote a little more time to it... and a little less time to working solely to keep the refrigerator stocked.
 
 ### One more thing!
 A small gesture that can - greatly - help us... \[Caffeine matters a lot for a team of neurodivergent folks: ASD, ADHD, GAD, HPI and/or THPI (members of **mensa.fr** and **triplenine.org**).\]

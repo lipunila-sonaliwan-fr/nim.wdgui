@@ -10,9 +10,9 @@
 #
 # Layout: menu bar, toolbar, file tree | tabbed code editor (line numbers, jGRASP-like
 # control structure diagram, syntax highlighting, minimap), launch console, status bar.
-import std/[os, strutils, sets, tables, times]
+import std/[os, strutils, sets, tables, times, algorithm]
 import ../../src/wdgui
-import editor, project, runner, wdnim_dialogs
+import editor, project, runner, wdnim_dialogs, lsp, designer
 
 when defined(macosx):
   const modName = "Cmd"
@@ -34,10 +34,16 @@ const
   SDLK_F6 = 0x4000003F'u32
   SDLK_F7 = 0x40000040'u32
   SDLK_F9 = 0x40000042'u32
+  SDLK_I = 0x69'u32
+  SDLK_F8 = 0x40000041'u32
+  SDLK_F12 = 0x40000045'u32
 
 var
   gMain, gMenu, gEditor, gTree, gProjectLabel, gConsole, gConsoleBox, gConsoleCmd: ControlId
   gStatusFile, gStatusPos, gStatusLines, gStatusGit, gStatusRun, gSplitter: ControlId
+  gStatusLsp, gProblems, gBottomTabs: ControlId
+  problemList: seq[tuple[path: string, d: Diagnostic]]
+  completionBusy: bool
   projectRoot: string
   projectEntries: seq[ProjectEntry]
   projectDirs: HashSet[string]
@@ -96,8 +102,131 @@ proc appendConsole(line: string) {.nimcall, gcsafe.} =
     if t.len > 400_000: t = t[t.len - 300_000 .. ^1]
     e.setValueText(t)            # keeps the end visible.
 
-proc showConsole(visible = true) =
+proc showConsole(visible = true, page = 1) =
   gConsoleBox.visible = visible
+  if visible: gBottomTabs.value = $page
+
+# language server (nimlangserver)
+
+proc refreshStatus()
+
+proc lspStatusCaption(): string =
+  let st = lspState()
+  if st != srvReady: return "LSP " & $st
+  var errors, warnings = 0
+  for p in lspAllDiagnostics():
+    if p.d.severity == 1: inc errors
+    elif p.d.severity == 2: inc warnings
+  result = "LSP ready"
+  if errors > 0: result.add " · " & $errors & (if errors == 1: " error" else: " errors")
+  if warnings > 0: result.add " · " & $warnings & (if warnings == 1: " warning" else: " warnings")
+
+proc refreshProblems() =
+  ## Problems page: every diagnostic of every open file, errors first.
+  var diags = lspAllDiagnostics()
+  proc before(a, b: tuple[path: string, d: Diagnostic]): bool =
+    ## errors first, then by file and line
+    if a.d.severity != b.d.severity: return a.d.severity < b.d.severity
+    if a.path != b.path: return a.path < b.path
+    a.d.line < b.d.line
+  for i in 1 ..< diags.len:                     # insertion sort (small lists)
+    let x = diags[i]
+    var j = i - 1
+    while j >= 0 and before(x, diags[j]):
+      diags[j + 1] = diags[j]
+      dec j
+    diags[j + 1] = x
+  guarded: problemList = diags
+  gridDeleteAll(gProblems)
+  for p in diags:
+    discard gridAddLine(gProblems, severityName(p.d.severity), relToRoot(p.path),
+                        $(p.d.line + 1), $(p.d.col + 1), p.d.message.replace("\n", " "))
+  gStatusLsp.caption = lspStatusCaption()
+
+proc lspText(path: string): tuple[found: bool, text: string] {.nimcall, gcsafe.} =
+  {.cast(gcsafe).}:
+    result = editorTextOf(gEditor, path)
+
+proc lspDiagnosticsChanged(path: string) {.nimcall, gcsafe.} =
+  {.cast(gcsafe).}:
+    editorSetDiagnostics(gEditor, path, lspDiagnostics(path))
+    refreshProblems()
+
+proc openAllInLsp() =
+  let n = editorInfo(gEditor).tabs
+  for i in 1 .. n:
+    let d = editorDocument(gEditor, i)
+    if d.path.len > 0:
+      let t = editorTextOf(gEditor, d.path)
+      if t.found: lspOpen(d.path, t.text)
+
+proc startLanguageServer() =
+  gStatusLsp.caption = "LSP starting…"
+  lspSetCallbacks(lspText, lspDiagnosticsChanged)
+  if lspStart(root()):
+    openAllInLsp()
+  gStatusLsp.caption = lspStatusCaption()
+  let msg = lspLastMessage()
+  if msg.len > 0: say(msg)
+
+proc completionRequest() =
+  var busy = false
+  guarded:
+    busy = completionBusy
+    completionBusy = true
+  if busy: return
+  try:
+    let pos = editorCursorPos(gEditor)
+    if pos.path.len == 0 or lspState() != srvReady: return
+    let t = editorTextOf(gEditor, pos.path)
+    if not t.found: return
+    let items = lspCompletion(pos.path, t.text, pos.line, pos.col)
+    let now = editorCursorPos(gEditor)
+    if items.len > 0 and now.line == pos.line and now.path == pos.path:
+      editorShowCompletion(gEditor, items)
+  finally:
+    guarded: completionBusy = false
+
+proc infoRequest(signature: bool) =
+  let pos = editorCursorPos(gEditor)
+  if pos.path.len == 0 or lspState() != srvReady: return
+  let t = editorTextOf(gEditor, pos.path)
+  if not t.found: return
+  let text = if signature: lspSignature(pos.path, t.text, pos.line, pos.col)
+             else: lspHover(pos.path, t.text, pos.line, pos.col)
+  if text.len > 0: editorShowInfo(gEditor, text)
+  elif not signature: say("No information at the cursor")
+
+proc gotoDefinition() =
+  let pos = editorCursorPos(gEditor)
+  if pos.path.len == 0: return
+  if lspState() != srvReady:
+    say("The language server is " & $lspState())
+    return
+  let t = editorTextOf(gEditor, pos.path)
+  let loc = lspDefinition(pos.path, t.text, pos.line, pos.col)
+  if loc.path.len == 0:
+    say("No definition found")
+    return
+  if editorOpenFile(gEditor, loc.path):
+    let t2 = editorTextOf(gEditor, loc.path)
+    if t2.found: lspOpen(loc.path, t2.text)
+    editorGotoLine(gEditor, loc.line + 1, loc.col + 1)
+    setFocus(gEditor)
+    refreshStatus()
+
+proc jumpToProblem(row: int) =
+  var p: tuple[path: string, d: Diagnostic]
+  var ok = false
+  guarded:
+    if row >= 1 and row <= problemList.len:
+      p = problemList[row - 1]
+      ok = true
+  if not ok: return
+  if editorOpenFile(gEditor, p.path):
+    editorGotoLine(gEditor, p.d.line + 1, p.d.col + 1)
+    setFocus(gEditor)
+    refreshStatus()
 
 proc refreshStatus() =
   let info = editorInfo(gEditor)
@@ -120,7 +249,7 @@ proc refreshGit() =
                        elif g.changes > 0: "git " & g.branch & "  +" & $g.changes
                        else: "git " & g.branch
 
-proc loadProject(dir: string) =
+proc loadProject(dir: string, restartLsp = true) =
   let full = normalizedPath(absolutePath(dir))
   let entries = scanProject(full)
   var dirs = initHashSet[string]()
@@ -137,11 +266,20 @@ proc loadProject(dir: string) =
   gProjectLabel.caption = extractFilename(full).toUpperAscii
   refreshGit()
   refreshStatus()
+  if restartLsp and lspState() in {srvReady, srvStarting, srvFailed}: startLanguageServer()   # new project root.
 
-# file commands
+proc onFormFileCreated(path: string) {.nimcall, gcsafe.} =
+  ## The designer created form_<name>.nim: show it in the project tree.
+  {.cast(gcsafe).}:
+    loadProject(root(), restartLsp = false)
+
+# file commands.
 
 proc openPath(path: string) =
   if editorOpenFile(gEditor, path):
+    let full = normalizedPath(absolutePath(path))
+    let t = editorTextOf(gEditor, full)
+    if t.found: lspOpen(full, t.text)
     setFocus(gEditor)
     refreshStatus()
   else:
@@ -165,6 +303,10 @@ proc saveCurrent(saveAs = false): bool =
       return false
     if r.path.startsWith(root()): loadProject(root())             # new file in the tree.
   say("Saved " & relToRoot(r.path))
+  let t = editorTextOf(gEditor, r.path)
+  if t.found:
+    lspOpen(r.path, t.text)                                       # a new file becomes known to the server.
+    lspSave(r.path, t.text)
   refreshStatus()
   refreshGit()
   true
@@ -174,7 +316,10 @@ proc saveAll(askForUntitled: bool) =
   for i in 1 .. n:
     let d = editorDocument(gEditor, i)
     if not d.modified: continue
-    if d.path.len > 0: discard editorSave(gEditor, i)
+    if d.path.len > 0:
+      if editorSave(gEditor, i).ok:
+        let t = editorTextOf(gEditor, d.path)
+        if t.found: lspSave(d.path, t.text)
     elif askForUntitled:
       editorSelectTab(gEditor, i)
       discard saveCurrent()
@@ -187,6 +332,9 @@ proc closeTab(index: int) =
                             "Close") != drOk:
     return
   editorClose(gEditor, index)
+  if d.path.len > 0:
+    lspClose(d.path)
+    refreshProblems()
   refreshStatus()
 
 proc quitCommand() =
@@ -198,6 +346,7 @@ proc quitCommand() =
   if unsaved.len > 0 and confirm(iconExclamation, "Unsaved changes in:\n" & unsaved.join(", ") &
                                  "\n\nQuit anyway?", "Quit wdnim") != drOk:
     return
+  lspStop()
   quitApplication()
 
 # edit / search commands
@@ -265,7 +414,7 @@ proc runMode(mode: RunMode) =
   say(if code == 0: $mode & ": success" else: $mode & ": failed (exit code " & $code & ")")
 
 proc jumpFromConsole() =
-  # Double-click on "file.nim(line, col) Error: ..." in the console opens the location.
+  ## Double-click on "file.nim(line, col) Error: …" in the console opens the location.
   let text = gConsole.value
   let sel = editSelection(gConsole)
   var a = min(sel.start, text.len)
@@ -340,6 +489,45 @@ proc command(cmd: string) =
   of "test": runMode(rmTest)
   of "stop": say(if stopRunning(): "Process stopped" else: "Nothing is running")
   of "clearConsole": gConsole.value = ""
+  of "complete": completionRequest()
+  of "hover": infoRequest(false)
+  of "signature": infoRequest(true)
+  of "gotoDef": gotoDefinition()
+  of "nextProblem":
+    let m = editorNextDiagnostic(gEditor)
+    say(if m.len > 0: m.splitLines()[0] else: "No problem in this file")
+  of "problems":
+    refreshProblems()
+    showConsole(true, 2)
+  of "lspRestart": startLanguageServer()
+  of "lspStatus":
+    let path = lspServerPath()
+    let st = lspState()
+    var msg = "State: " & $st & "\nServer: " & (if path.len > 0: path else: "not found")
+    let last = lspLastMessage()
+    if last.len > 0: msg.add "\n\n" & last
+    if st in {srvMissing, srvFailed}:
+      msg.add "\n\nInstall it with:\n    nimble install -g nimlangserver\n" &
+              "It needs a nimsuggest that supports --v3 (Nim 1.6 or later)."
+    alert((if st == srvReady: iconInformation else: iconExclamation), msg, "Language Server")
+  of "designerNew", "designerOpen":
+    if designerIsOpen():
+      say("The form designer is already open")
+      return
+    let info = editorInfo(gEditor)
+    let code = info.path
+    if code.len == 0 or not code.endsWith(".nim") or extractFilename(code).startsWith("form_"):
+      alert(iconExclamation, "Open (and save) the Nim file that will use the form first:\n" &
+            "the designer adds its event handlers and registrations to that file.", "Form Designer")
+      return
+    var form = ""
+    if cmd == "designerOpen":
+      form = openFileDialog("Open Form", root(), "Forms|form_*.nim\nNim files|*.nim")
+      if form.len == 0: return
+    var dark: bool
+    guarded: dark = darkMode
+    if openDesigner(root(), code, form, gEditor, wdnimTheme(dark)):
+      say("Form designer opened for " & extractFilename(code))
   of "about":
     alert(logoIcon, "wdnim 0.1\n\nA Nim editor written by Jean-Marc Quéré\n" &
           "LPCS, Lab'Oratoire (metalab at sonaliwan.fr)\n" &
@@ -360,6 +548,10 @@ proc shortcut(key: uint32, mods: uint16): string =
   of SDLK_F6: result = "build"
   of SDLK_F7: result = "check"
   of SDLK_F9: result = "runConfig"
+  of SDLK_F8: result = "nextProblem"
+  of SDLK_F12: result = "gotoDef"
+  of SDLK_I:
+    if cmd: result = "hover"
   of SDLK_N:
     if cmd: result = "new"
   of SDLK_O:
@@ -395,10 +587,16 @@ proc handler(ev: var Event) {.nimcall, gcsafe.} =
         let c = menuCommands.getOrDefault(ev.text)
         if c.len > 0: command(c)
     of evChange:
-      if ev.id == gEditor: refreshStatus()
+      if ev.id == gEditor:
+        let pos = editorCursorPos(gEditor)
+        lspMarkChanged(pos.path)
+        refreshStatus()
+        if ev.text == "complete": completionRequest()
+        elif ev.text == "signature": infoRequest(true)
     of evClick:
       if ev.id == gEditor:
         if ev.text == "close-tab": closeTab(ev.index)
+        elif ev.text == "goto-definition": gotoDefinition()
       else:
         for t in toolCommands:
           if t.id == ev.id:
@@ -406,6 +604,9 @@ proc handler(ev: var Event) {.nimcall, gcsafe.} =
             break
     of evDoubleClick:
       if ev.id == gConsole: jumpFromConsole()
+      elif ev.id == gProblems and ev.index > 0: jumpToProblem(ev.index)
+    of evWindowOpen:
+      if ev.id == gMain: startLanguageServer()
     of evKeyDown:
       let c = shortcut(ev.key, ev.modifiers)
       if c.len > 0: command(c)
@@ -431,7 +632,10 @@ proc buildMenu(win: Window) =
     ("Edit", "Replace…", "replace", "Alt+F"), ("Edit", "Go to Line…", "goto", "G"),
     ("Edit", "-", "", ""), ("Edit", "Toggle Comment", "toggleComment", "/"),
     ("Edit", "Duplicate Line", "duplicate", "D"), ("Edit", "Indent", "indent", "Tab"),
-    ("Edit", "Outdent", "dedent", "Shift+Tab"),
+    ("Edit", "Outdent", "dedent", "Shift+Tab"), ("Edit", "-", "", ""),
+    ("Edit", "Trigger Suggestions", "complete", "Ctrl+Space"), ("Edit", "Show Information", "hover", "I"),
+    ("Edit", "Signature Help", "signature", ""),
+    ("Edit", "Go to Definition", "gotoDef", "F12"), ("Edit", "Next Problem", "nextProblem", "F8"),
     ("View", "Minimap", "toggleMinimap", ""), ("View", "Structure Diagram", "toggleCsd", ""),
     ("View", "Console", "toggleConsole", "B"), ("View", "Light / Dark Theme", "toggleTheme", ""),
     ("View", "Refresh Project Tree", "refreshTree", ""),
@@ -440,11 +644,16 @@ proc buildMenu(win: Window) =
     ("Run", "Nimble Test", "test", ""), ("Run", "Run Configured Mode", "runConfigured", ""),
     ("Run", "-", "", ""), ("Run", "Run Configuration…", "runConfig", "F9"),
     ("Run", "Stop", "stop", "Shift+F5"), ("Run", "Clear Console", "clearConsole", ""),
+    ("Language", "Problems", "problems", ""), ("Language", "Restart Language Server", "lspRestart", ""),
+    ("Language", "Language Server Status…", "lspStatus", ""),
+    ("Design", "New Form for the Current File…", "designerNew", ""),
+    ("Design", "Open Form…", "designerOpen", ""),
     ("Help", "About wdnim", "about", "")]
   for (menu, label, cmd, key) in items:
     var caption = label
     if key.len > 0:
-      let k = if key.startsWith("F") or key in ["Tab", "Shift+Tab", "Shift+F5"]: key else: modName & "+" & key
+      let k = if key.startsWith("F") or key in ["Tab", "Shift+Tab", "Shift+F5", "Ctrl+Space"]: key
+              else: modName & "+" & key
       caption = label & "    " & k
     menuAdd(m.id, menu & TreeSep & caption)
     if cmd.len > 0: menuCommands[menu & TreeSep & caption] = cmd
@@ -478,6 +687,8 @@ proc buildToolbar(win: Window) =
   tb.tool("Console", "toggleConsole", "Show / hide the console (" & modName & "+B)")
   tb.tool("Project", "projectInfo", "Project information (F1)")
   tb.tool("Theme", "toggleTheme", "Light / dark theme")
+  tb.gap()
+  tb.tool("Designer", "designerNew", "Form designer for the current file")
 
 proc buildStatusBar(win: Window) =
   let bar = win.addChild(newCell(lkHorizontal))
@@ -493,6 +704,7 @@ proc buildStatusBar(win: Window) =
   gStatusRun = bar.addChild(newLabel("Ready")).id
   gStatusPos = bar.addChild(newLabel("")).id
   gStatusLines = bar.addChild(newLabel("")).id
+  gStatusLsp = bar.addChild(newLabel("LSP off")).id
   let g = bar.addChild(newLabel("no git"))
   g.style.text = some(win.theme.accent)
   gStatusGit = g.id
@@ -500,10 +712,25 @@ proc buildStatusBar(win: Window) =
 proc buildConsole(win: Window) =
   let box = win.addChild(newContainer(lkBorder, 4, 4))
   box.dock = dkBottom
-  box.fixedHeight = 210
+  box.fixedHeight = 230
   box.visible = false
   gConsoleBox = box.id
-  let head = box.addChild(newSupercontrol(lkHorizontal, 6))
+  let tabs = box.addChild(newTab())
+  tabs.dock = dkCenter
+  gBottomTabs = tabs.id
+  let page = tabs.addPage("Console", lkBorder)
+  let probs = tabs.addPage("Problems", lkBorder)
+  let grid = probs.addChild(newGrid())
+  grid.dock = dkCenter
+  discard grid.addColumn("severity", "Severity", gcText, 90)
+  discard grid.addColumn("file", "File", gcText, 220)
+  discard grid.addColumn("line", "Line", gcNumber, 60)
+  discard grid.addColumn("col", "Col", gcNumber, 50)
+  discard grid.addColumn("message", "Message", gcText, 700)
+  grid.formats.add ConditionalFormat(column: 0, op: coEquals, value: "Error", text: hex"#F14C4C", wholeRow: false)
+  grid.formats.add ConditionalFormat(column: 0, op: coEquals, value: "Warning", text: hex"#E5A33B", wholeRow: false)
+  gProblems = grid.id
+  let head = page.addChild(newSupercontrol(lkHorizontal, 6))
   head.dock = dkTop
   let t = head.addChild(newLabel("CONSOLE"))
   t.style.text = some(win.theme.accent)
@@ -515,7 +742,7 @@ proc buildConsole(win: Window) =
     let b = head.addChild(newButton(caption))
     b.flat = true
     toolCommands.add((b.id, cmd))
-  let e = box.addChild(newEdit("", multiline = true, placeholder = "Output of Run / Build / Check. " &
+  let e = page.addChild(newEdit("", multiline = true, placeholder = "Output of Run / Build / Check. " &
                                     "Double-click an error line to open its location."))
   e.dock = dkCenter
   gConsole = e.id
@@ -531,6 +758,7 @@ proc main() =
   win.root.margin = 0
   win.root.spacing = 0
   gMain = win.id
+  designerFileCreated = onFormFileCreated
   logoIcon = loadIcon(currentSourcePath().parentDir / ".." / ".." / "examples" / "logo.bmp")
   buildMenu(win)
   buildToolbar(win)
