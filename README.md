@@ -113,6 +113,14 @@ Honestly, I never thought I would get this far in such a short time. Nim is trul
 
 Ah... if only I could devote a little more time to it... and a little less time to working solely to keep the refrigerator stocked.
 
+## Version 1.5.3
+
++ Add a PDF control (thanks to the [PDFium team](https://github.com/bblanchon/pdfium-binaries) for their help)
+
++ Adds an environment variable (WDGUI_PATH) to define the root directory for the `linOS`, `macOS`, and `winOS` folders, applicable to all applications using wdgui.
+
+[![Buy Me a Coffee](pdf.png)](https://buymeacoffee.com/sonaliwan.fr)
+
 ### One more thing!
 A small gesture that can - greatly - help us... \[Caffeine matters a lot for a team of neurodivergent folks: ASD, ADHD, GAD, HPI and/or THPI (members of **mensa.fr** and **triplenine.org**).\]
 
