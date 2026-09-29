@@ -3,13 +3,13 @@
 
 type
   Diagnostic* = object
-    line*, col*, endLine*, endCol*: int   ## 0-based; columns in characters (runes)
-    severity*: int                        ## 1 error, 2 warning, 3 information, 4 hint
+    line*, col*, endLine*, endCol*: int                           # 0-based; columns in characters (runes).
+    severity*: int                                                # 1 error, 2 warning, 3 information, 4 hint.
     message*, source*: string
 
   CompletionItem* = object
     label*, detail*, insertText*, documentation*: string
-    kind*: int                            ## LSP CompletionItemKind
+    kind*: int                                                    # LSP CompletionItemKind.
 
 proc severityName*(s: int): string =
   case s
@@ -19,7 +19,7 @@ proc severityName*(s: int): string =
   else: "Hint"
 
 proc kindBadge*(kind: int): tuple[letter: string, hue: int] =
-  ## One-letter badge and color index for a completion kind.
+  # One-letter badge and color index for a completion kind.
   case kind
   of 2, 3, 4: ("p", 0)          # method / function / constructor
   of 5, 10: ("f", 1)            # field / property

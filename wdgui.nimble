@@ -1,4 +1,4 @@
-version       = "1.4.2"
+version       = "1.5.3"
 author        = "wdgui"
 description   = "Nim GUI library on top of SDL3 modelled on WD-style controls and API"
 license       = "MIT"
@@ -23,3 +23,6 @@ task dialogs, "Build and run the dialog boxes demo":
 
 task wdnim, "Build and run wdnim, the Nim editor example application":
   exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf -o:apps/wdnim/wdnim apps/wdnim/wdnim.nim ."
+
+task pdf, "Build and run the PDF viewer / editor demo":
+  exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/pdf_demo.nim"

@@ -1477,8 +1477,8 @@ proc editorOptions*(id: ControlId): tuple[minimap, csd: bool] =
   readControl(id, CodeEditor, ed): result = (ed.showMinimap, ed.showCsd)
 
 proc editorShowCompletion*(id: ControlId, items: seq[CompletionItem]) =
-  ## Opens the completion popup at the cursor with the server's items (filtered by the
-  ## identifier being typed).
+  # Opens the completion popup at the cursor with the server's items (filtered by the
+  # identifier being typed).
   withControl(id, CodeEditor, ed):
     let d = ed.doc
     if d != nil and items.len > 0:
@@ -1486,7 +1486,7 @@ proc editorShowCompletion*(id: ControlId, items: seq[CompletionItem]) =
       ed.refilter()
 
 proc editorShowInfo*(id: ControlId, text: string) =
-  ## Shows a bubble above the cursor (hover information, signature help); Esc closes it.
+  # Shows a bubble above the cursor (hover information, signature help); Esc closes it.
   withControl(id, CodeEditor, ed): ed.infoText = text.strip
 
 proc editorSetDiagnostics*(id: ControlId, path: string, diags: seq[Diagnostic]) =
@@ -1495,19 +1495,19 @@ proc editorSetDiagnostics*(id: ControlId, path: string, diags: seq[Diagnostic]) 
       if d.path == path: d.diags = diags
 
 proc editorTextOf*(id: ControlId, path: string): tuple[found: bool, text: string] =
-  ## Current text of the open document `path` (used to sync the language server).
+  # Current text of the open document `path` (used to sync the language server).
   readControl(id, CodeEditor, ed):
     for d in ed.docs:
       if d.path == path: return (true, d.lines.join("\n"))
 
 proc editorCursorPos*(id: ControlId): tuple[path: string, line, col: int] =
-  ## Path of the current document and cursor position (0-based line, character column).
+  # Path of the current document and cursor position (0-based line, character column).
   readControl(id, CodeEditor, ed):
     let d = ed.doc
     if d != nil: result = (d.path, d.line, runeCol(d.lines[d.line], d.col))
 
 proc editorNextDiagnostic*(id: ControlId): string =
-  ## Moves to the next diagnostic after the cursor (wrapping); returns its message.
+  # Moves to the next diagnostic after the cursor (wrapping); returns its message.
   withControl(id, CodeEditor, ed):
     let d = ed.doc
     if d != nil and d.diags.len > 0:
@@ -1529,7 +1529,7 @@ proc editorNextDiagnostic*(id: ControlId): string =
       result = severityName(dg.severity) & ": " & dg.message
 
 proc editorSetText*(id: ControlId, path, text: string, modified = true): bool =
-  ## Replaces the text of the open document `path` (undoable); false if it is not open.
+  # Replaces the text of the open document `path` (undoable); false if it is not open.
   withControl(id, CodeEditor, ed):
     for d in ed.docs:
       if d.path == path:

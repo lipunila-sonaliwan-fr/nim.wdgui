@@ -3,19 +3,22 @@
 # Compile-time options:
 #   -d:sdlttf    use SDL3_ttf for TrueType fonts (otherwise SDL3's built-in bitmap font)
 #   -d:sdlimage  use SDL3_image to load PNG/JPG... (otherwise BMP only)
+import std/os
 
-when defined(windows):
-  const SdlLib* = "winOS/SDL3.dll"
-  const SdlTtfLib* = "winOS/SDL3_ttf.dll"
-  const SdlImageLib* = "winOS/SDL3_image.dll"
-elif defined(macosx):
-  const SdlLib* = "macOS/libSDL3(|.0).dylib"
-  const SdlTtfLib* = "macOS/libSDL3_ttf(|.0).dylib"
-  const SdlImageLib* = "macOS/libSDL3_image(|.0).dylib"
-else:
-  const SdlLib* = "linOS/libSDL3.so(|.0)"
-  const SdlTtfLib* = "linOS/libSDL3_ttf.so(|.0)"
-  const SdlImageLib* = "linOS/libSDL3_image.so(|.0)"
+proc sdlLibName(sfx: string): string =
+  var env = getEnv("WDGUI_PATH")
+  var SdlLib =
+    when defined(windows):
+      "winOS/SDL3" & sfx & ".dll"
+    elif defined(macosx):
+      "macOS/libSDL3" & sfx & ".dylib"
+    else:
+      "linOS/libSDL3" & sfx & ".so"
+  if env.len > 0 and dirExists(env):
+    env = env & "/" & SdlLib
+  else:
+    env = SdlLib
+  result = env
 
 type
   SDL_Window* = ptr object
@@ -89,6 +92,8 @@ const
   SDL_INIT_VIDEO* = 0x20'u32
   SDL_WINDOW_RESIZABLE* = 0x20'u64
   SDL_BLENDMODE_BLEND* = 0x1'u32
+  SDL_PIXELFORMAT_ARGB8888* = 0x16362004'u32                      # B,G,R,A bytes in memory (little-endian)
+  SDL_TEXTUREACCESS_STATIC* = 0.cint
   SDL_MOUSEWHEEL_FLIPPED* = 1'u32
 
   SDL_EVENT_QUIT* = 0x100'u32
@@ -152,7 +157,7 @@ when defined(macosx):
 else:
   const KMOD_CMD* = KMOD_CTRL         # shortcut modifier (Ctrl elsewhere).
 
-{.push dynlib: SdlLib, cdecl, importc.}
+{.push dynlib: sdlLibName(""), cdecl, importc.}
 proc SDL_Init*(flags: uint32): bool
 proc SDL_Quit*()
 proc SDL_GetError*(): cstring
@@ -183,6 +188,8 @@ proc SDL_RenderDebugText*(r: SDL_Renderer, x, y: cfloat, s: cstring): bool
 proc SDL_SetRenderScale*(r: SDL_Renderer, sx, sy: cfloat): bool
 proc SDL_SetRenderClipRect*(r: SDL_Renderer, rect: ptr SDL_Rect): bool
 proc SDL_RenderTexture*(r: SDL_Renderer, t: SDL_Texture, src, dst: ptr SDL_FRect): bool
+proc SDL_CreateTexture*(r: SDL_Renderer, format: uint32, access: cint, w, h: cint): SDL_Texture
+proc SDL_UpdateTexture*(t: SDL_Texture, rect: ptr SDL_Rect, pixels: pointer, pitch: cint): bool
 proc SDL_CreateTextureFromSurface*(r: SDL_Renderer, s: SDL_Surface): SDL_Texture
 proc SDL_DestroyTexture*(t: SDL_Texture)
 proc SDL_GetTextureSize*(t: SDL_Texture, w, h: ptr cfloat): bool
@@ -206,7 +213,7 @@ proc SDL_DestroyCursor*(c: SDL_Cursor)
 
 when defined(sdlttf):
   type TTF_Font* = ptr object
-  {.push dynlib: SdlTtfLib, cdecl, importc.}
+  {.push dynlib: sdlLibName("_ttf"), cdecl, importc.}
   proc TTF_Init*(): bool
   proc TTF_OpenFont*(file: cstring, ptsize: cfloat): TTF_Font
   proc TTF_CloseFont*(f: TTF_Font)
@@ -216,4 +223,4 @@ when defined(sdlttf):
   {.pop.}
 
 when defined(sdlimage):
-  proc IMG_Load*(file: cstring): SDL_Surface {.dynlib: SdlImageLib, cdecl, importc.}
+  proc IMG_Load*(file: cstring): SDL_Surface {.dynlib: sdlLibName("_image"), cdecl, importc.}

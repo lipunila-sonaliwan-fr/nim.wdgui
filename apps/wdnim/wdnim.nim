@@ -122,10 +122,10 @@ proc lspStatusCaption(): string =
   if warnings > 0: result.add " · " & $warnings & (if warnings == 1: " warning" else: " warnings")
 
 proc refreshProblems() =
-  ## Problems page: every diagnostic of every open file, errors first.
+  # Problems page: every diagnostic of every open file, errors first.
   var diags = lspAllDiagnostics()
   proc before(a, b: tuple[path: string, d: Diagnostic]): bool =
-    ## errors first, then by file and line
+    # errors first, then by file and line
     if a.d.severity != b.d.severity: return a.d.severity < b.d.severity
     if a.path != b.path: return a.path < b.path
     a.d.line < b.d.line
@@ -269,13 +269,33 @@ proc loadProject(dir: string, restartLsp = true) =
   if restartLsp and lspState() in {srvReady, srvStarting, srvFailed}: startLanguageServer()   # new project root.
 
 proc onFormFileCreated(path: string) {.nimcall, gcsafe.} =
-  ## The designer created form_<name>.nim: show it in the project tree.
+  # The designer created form_<name>.nim: show it in the project tree.
   {.cast(gcsafe).}:
     loadProject(root(), restartLsp = false)
 
-# file commands.
+# file commands
+
+proc openPdfWindow(path: string) =
+  # PDF files open in their own window with the wdgui PDF viewer / editor.
+  var dark: bool
+  guarded: dark = darkMode
+  var pid: ControlId
+  guarded:
+    let w = newWindow("PDF - " & extractFilename(path), 1120, 840, nil, wdnimTheme(dark), lkBorder)
+    w.root.margin = 0
+    w.root.spacing = 0
+    let v = w.addChild(newPdfViewer())
+    v.dock = dkCenter
+    pid = v.id
+  if not pdfAvailable():
+    alert(iconExclamation, pdfError(), "PDF")
+  elif path.len > 0 and not pdfOpen(pid, path):
+    alert(iconStop, "Cannot open \"" & path & "\".", "PDF")
 
 proc openPath(path: string) =
+  if path.toLowerAscii.endsWith(".pdf"):
+    openPdfWindow(path)
+    return
   if editorOpenFile(gEditor, path):
     let full = normalizedPath(absolutePath(path))
     let t = editorTextOf(gEditor, full)
@@ -414,7 +434,7 @@ proc runMode(mode: RunMode) =
   say(if code == 0: $mode & ": success" else: $mode & ": failed (exit code " & $code & ")")
 
 proc jumpFromConsole() =
-  ## Double-click on "file.nim(line, col) Error: …" in the console opens the location.
+  # Double-click on "file.nim(line, col) Error: …" in the console opens the location.
   let text = gConsole.value
   let sel = editSelection(gConsole)
   var a = min(sel.start, text.len)
@@ -528,6 +548,10 @@ proc command(cmd: string) =
     guarded: dark = darkMode
     if openDesigner(root(), code, form, gEditor, wdnimTheme(dark)):
       say("Form designer opened for " & extractFilename(code))
+  of "openPdf":
+    let p = openFileDialog("Open PDF", root(), "PDF files|*.pdf")
+    if p.len > 0: openPdfWindow(p)
+  of "newPdf": openPdfWindow("")
   of "about":
     alert(logoIcon, "wdnim 0.1\n\nA Nim editor written by Jean-Marc Quéré\n" &
           "LPCS, Lab'Oratoire (metalab at sonaliwan.fr)\n" &
@@ -621,7 +645,8 @@ proc buildMenu(win: Window) =
   gMenu = m.id
   let items = [
     ("File", "New File", "new", "N"), ("File", "Open File…", "open", "O"),
-    ("File", "Open Folder…", "openFolder", "Shift+O"), ("File", "-", "", ""),
+    ("File", "Open Folder…", "openFolder", "Shift+O"),
+    ("File", "Open PDF…", "openPdf", ""), ("File", "PDF Viewer / Editor", "newPdf", ""), ("File", "-", "", ""),
     ("File", "Save", "save", "S"), ("File", "Save As…", "saveAs", "Shift+S"),
     ("File", "Save All", "saveAll", "Alt+S"), ("File", "-", "", ""),
     ("File", "Close Tab", "close", "W"), ("File", "Quit", "quit", "Q"),

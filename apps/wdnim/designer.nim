@@ -934,7 +934,7 @@ proc saveForm() =
     return
   discard editorSetText(dEditor, path, code, modified = false)
   guarded: dFormFile = path
-  dWin.caption = "Form designer — " & formFileName(name) & " — " & extractFilename(dCodePath)
+  dWin.caption = "Form designer - " & formFileName(name) & " - " & extractFilename(dCodePath)
   status("Saved " & formFileName(name) & " · code: " & extractFilename(dCodePath))
   if isNew and designerFileCreated != nil: designerFileCreated(path)
 

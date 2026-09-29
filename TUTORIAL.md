@@ -1028,7 +1028,100 @@ nimble dialogs   # or: nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/d
 
 ---
 
-## Step 14 - Putting it together
+## Step 14 - PDF viewer and editor
+
+`newPdfViewer()` is a complete PDF reader and editor in a single control. It has two command bars, a sidebar (page thumbnails / outline), the pages in continuous scrolling and a status line. It is built on **PDFium**, the PDF engine of Chrome.
+
+### 14.1 Install PDFium
+
+PDFium is loaded **at run time**: programs that never show a PDF do not need it.
+
+1. Download the archive for your system from [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries/releases/latest): `pdfium-mac-arm64.tgz` or `pdfium-mac-x64.tgz`, `pdfium-linux-x64.tgz` or `pdfium-linux-arm64.tgz`, `pdfium-win-x64.tgz`.
+2. Take the library out of it: `lib/libpdfium.dylib` (macOS), `lib/libpdfium.so` (Linux), `bin/pdfium.dll` (Windows).
+3. Put it next to your executable, in the `xxxOS` folder next to it, or set `WDGUI_PATH` to the root of the `xxxOS` folders where `xxx` is `lin` (for Linux), `mac` (for macOS) or `win` (for Windows).  
+
+`pdfAvailable()` tells whether the library could be loaded, and `pdfError()` explains why not.
+
+### 14.2 Add the viewer
+
+```nim
+import src/wdgui
+
+var pdf: ControlId
+
+proc handler(ev: var Event) {.nimcall, gcsafe.} =
+  if ev.id != pdf or ev.current != ev.id: return
+  if ev.kind == evChange: echo "operation: ", ev.text          # open, save, rotate, import...
+  if ev.kind == evSelection: echo "page ", ev.index
+
+let win = newWindow("PDF", 1200, 850, handler, layout = lkBorder)
+let v = win.addChild(newPdfViewer())
+v.dock = dkCenter
+pdf = v.id
+discard pdfOpen(pdf, "manual.pdf")
+runApplication()
+```
+
+The control is self-contained: its buttons work without any code. Commands that need a dialog (open, save as, go to, find, insert, add text) run on their own thread.
+
+### 14.3 What the user can do
+
+| Bar | Commands |
+|---|---|
+| File | Open (asks for the password of a protected file), Save, Save As, New (blank A4 document) |
+| Navigation | first / previous / next / last page, the `3 / 12` button (go to page, F2), thumbnails and outline in the sidebar |
+| View | zoom out / in (also Cmd/Ctrl+wheel), fit width, fit page, 100 % |
+| Search | Find (Cmd/Ctrl+F: match case, whole word, backwards; F3 = next), results highlighted |
+| Tools | **Select** (drag to select text, double-click for a word, Cmd/Ctrl+C to copy), **Hand** (pan), **Add text** (click where to write), **Note** (sticky note), **Rectangle** (drag), **Highlight** (the selected text) |
+| Pages | Rotate, Delete page, Page up / Page down (reorder), Blank page, **Insert PDF...** |
+| Info | title, author, subject, keywords, creator, producer, dates, PDF version, page size, file size |
+
+**Insert PDF...** merges pages of another document:
+1. choose the source file;
+2. give the pages to take, e.g. `2` or `1,3,5-7` (empty = all);
+3. give the page before which they are inserted (number of pages + 1 = at the end).
+
+Then save the result with Save / Save As.
+
+### 14.4 Programming it
+
+Every operation is also available by id, from any thread; pages are **1-based**, positions are in **PDF points** (1/72 inch, origin at the bottom-left of the page):
+
+| Area | Procedures |
+|---|---|
+| Document | `pdfOpen(id, path, password = "")`, `pdfNew(id, width = 595, height = 842)`, `pdfSave(id, path = "")`, `pdfClose`, `pdfPath`, `pdfModified`, `pdfInfo` |
+| Navigation | `pdfPageCount`, `pdfCurrentPage`, `pdfGoto(id, page)`, `pdfSetZoom(id, 1.5)`, `pdfSetFit(id, 1)` (1 = width, 2 = page), `pdfOutline` |
+| Pages | `pdfRotatePage(id, page, quarterTurns = 1)`, `pdfDeletePage`, `pdfMovePage(id, page, toPage)`, `pdfInsertBlankPage(id, beforePage)` |
+| Merge | `pdfImportPages(id, "other.pdf", "1,3,5-7", beforePage)` → "" or an error message |
+| Content | `pdfAddText(id, page, x, y, "text", size = 14, color = Black)`, `pdfAddNote(id, page, x, y, "note")`, `pdfAddRect(id, page, left, bottom, width, height)`, `pdfHighlightSelection(id)` |
+| Text | `pdfFind(id, "word", matchCase, wholeWord, backwards)`, `pdfSelectedText(id)` |
+| Tools | `pdfSetTool(id, ptSelect / ptHand / ptText / ptNote / ptRect)` |
+
+Example: merge page 2 of `annex.pdf` before page 5 of `report.pdf`, stamp the first page and save a copy:
+
+```nim
+discard pdfOpen(pdf, "report.pdf")
+let err = pdfImportPages(pdf, "annex.pdf", "2", 5)
+if err.len > 0: alert(iconStop, err)
+pdfAddText(pdf, 1, 400, 800, "APPROVED", 18, hex"#D13438")
+discard pdfSave(pdf, "report-final.pdf")
+```
+
+Creating a document from scratch:
+
+```nim
+discard pdfNew(pdf)                                   # one blank A4 page
+pdfAddText(pdf, 1, 72, 770, "Invoice 2026-042\nACME Corporation", 20)
+pdfAddRect(pdf, 1, 60, 700, 475, 40)
+pdfInsertBlankPage(pdf, 2)                            # a second page
+discard pdfSave(pdf, "invoice.pdf")
+```
+
+`examples/pdf_demo.nim` shows the control in a window (`nimble pdf`), and wdnim opens `.pdf` files of the project tree (and File > Open PDF...) in it.
+
+---
+
+## Step 15 - Putting it together
 
 `examples/demo.nim` combines everything above: a menu bar, a toolbar, five tab pages with every control, live theme switching (combo + dark switch in the status bar), a long process updating a progress bar, a context menu on the list, and propagation to a cell. Read it top to bottom; it is written to be copied from.
 
@@ -1037,7 +1130,19 @@ nimble demo      # or: nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/d
 nimble custom    # the custom-control example
 nimble grid      # the Grid control
 nimble panel     # scrollable panels
+nimble dialogs   # dialog boxes
+nimble pdf       # PDF viewer and editor
+nimble wdnim     # wdnim, a complete Nim editor (apps/wdnim)
 ```
+
+For a real application, study `apps/wdnim`, a full Nim code editor built with the techniques of this course:
+- a large custom control (step 9);
+- the id API from handlers (step 4);
+- long processes (step 6);
+- the Grid (step 11);
+- dialogs (step 13).
+
+Its README explains each part.
 
 ---
 
@@ -1052,6 +1157,8 @@ nimble panel     # scrollable panels
 | Window does not appear on macOS | call `runApplication()` from the main thread (top-level code or `main()`). |
 | A grid cell cannot be edited | check the resolution order cell → line → column → grid (`gridSetEditable`, `gridSetColumnEdit`...); image and button columns and grayed columns are never editable. |
 | A panel shows no scrollbar | its content fits, or the panel grew to its content: give it a `weight`, a `dock` or a fixed size. |
+| A dialog returns at once with a warning | it was called from the UI thread or before `runApplication()`: call it from an event handler. |
+| The PDF viewer says "PDFium library not found" | install PDFium (step 14.1): the library next to the program in `./linOS`, `./macOS`, `./winOS`, or set `WDGUI_PATH`. |
 | A setter seems ignored | check the id belongs to the right kind of control: the id API silently ignores mismatched types (e.g. `listAdd` on a button). |
 
 ## WD-style → wdgui cheat sheet

@@ -74,7 +74,7 @@ proc nimSettings(): JsonNode =
      "inlayHints": {"typeHints": false, "exceptionHints": false, "parameterHints": false}}
 
 proc findServer*(): string =
-  ## nimlangserver on the PATH, else in ~/.nimble/bin.
+  # nimlangserver on the PATH, else in ~/.nimble/bin.
   result = findExe("nimlangserver")
   if result.len > 0: return
   for c in [getHomeDir() / ".nimble" / "bin" / "nimlangserver",
@@ -82,8 +82,8 @@ proc findServer*(): string =
     if fileExists(c): return c
 
 proc serverEnv(exe: string): StringTableRef =
-  ## Environment for the server: PATH extended with the usual Nim locations, since an
-  ## application started from the desktop may not inherit the shell PATH (nimsuggest, nim…).
+  # Environment for the server: PATH extended with the usual Nim locations, since an
+  # application started from the desktop may not inherit the shell PATH (nimsuggest, nim…).
   result = newStringTable(modeCaseSensitive)
   for k, v in envPairs(): result[k] = v
   var extra: seq[string]
@@ -111,7 +111,7 @@ proc reply(id: JsonNode, res: JsonNode) =
   sendRaw(%*{"jsonrpc": "2.0", "id": id, "result": res})
 
 proc request(meth: string, params: JsonNode, timeoutMs = 4000): JsonNode =
-  ## Sends a request and waits for its result (nil on timeout, error or when not ready).
+  # Sends a request and waits for its result (nil on timeout, error or when not ready).
   var id: int
   {.cast(gcsafe).}:
     withLock lk:
@@ -214,13 +214,13 @@ proc readerLoop() {.thread.} =
       state = if stopping: srvOff else: srvFailed
 
 proc errLoop() {.thread.} =
-  ## Drains stderr (server logs) so that the pipe never fills up.
+  # Drains stderr (server logs) so that the pipe never fills up.
   {.cast(gcsafe).}:
     var line = ""
     while errStream != nil and errStream.readLine(line): discard
 
 proc syncLoop() {.thread.} =
-  ## Sends pending edits after 350 ms without typing.
+  # Sends pending edits after 350 ms without typing.
   {.cast(gcsafe).}:
     while true:
       sleep(120)
@@ -370,14 +370,14 @@ proc lspOpen*(path, text: string) =
                                                        "version": 1, "text": text}})
 
 proc lspMarkChanged*(path: string) =
-  ## Records an edit; the sync thread sends it after a short pause in typing.
+  # Records an edit; the sync thread sends it after a short pause in typing.
   if path.len == 0: return
   {.cast(gcsafe).}:
     withLock lk:
       if path in versions: pendingChanges[path] = epochTime()
 
 proc syncNow(path, text: string) =
-  ## Sends the current text immediately (before a request that depends on it).
+  # Sends the current text immediately (before a request that depends on it).
   var v = 0
   {.cast(gcsafe).}:
     withLock lk:
@@ -422,7 +422,7 @@ proc position(path: string, line, col: int): JsonNode =
   %*{"textDocument": {"uri": uriOf(path)}, "position": {"line": line, "character": col}}
 
 proc plain(n: JsonNode): string =
-  ## Text of a MarkupContent / MarkedString / array of them, without code fences.
+  # Text of a MarkupContent / MarkedString / array of them, without code fences.
   if n == nil: return ""
   case n.kind
   of JString: result = n.getStr
@@ -438,7 +438,7 @@ proc plain(n: JsonNode): string =
   result = lines.join("\n").strip
 
 proc lspCompletion*(path, text: string, line, col: int): seq[CompletionItem] =
-  ## Completion items at (line, col) — 0-based, col in characters.
+  # Completion items at (line, col) - 0-based, col in characters.
   if lspState() != srvReady: return
   syncNow(path, text)
   let res = request("textDocument/completion", position(path, line, col), 6000)
