@@ -198,4 +198,4 @@ It is a good place to see wdgui used for real:
 ### One more thing!
 A small gesture that can - greatly - help us... \[Caffeine matters a lot for a team of neurodivergent folks: ASD, ADHD, GAD, HPI and/or THPI (members of **mensa.fr** and **triplenine.org**).\]
 
-[![Buy Me a Coffee](buymeacoffe-eng.png)](https://buymeacoffee.com/sonaliwan.fr)
+[![Buy Me a Coffee](../../buymeacoffe-eng.png)](https://buymeacoffee.com/sonaliwan.fr)
