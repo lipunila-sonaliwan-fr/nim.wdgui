@@ -169,7 +169,7 @@ proc closeWindow*(winId: ControlId) =
 
 proc refresh*(id: ControlId) =
   # Forces a redraw (equivalent to Refresh / grDraw).
-  withControl(id, Control, c): discard
+  withControl(id, Control, _): discard
 
 proc openContextMenu*(id: ControlId, options: openArray[string], x = -1.0, y = -1.0) =
   # Opens a context menu attached to the control; the choice emits evSelection on it

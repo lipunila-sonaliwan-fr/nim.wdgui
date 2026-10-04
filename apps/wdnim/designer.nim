@@ -1153,7 +1153,7 @@ proc designerCommand(cmd: string) =
                       "new" & kind & "($caption)", "Custom control")
     let module = prompt(iconQuestion, "Module to import in the generated code (empty if none):", "", "Custom control")
     if addCustomEntry(dRoot, kind, base, ctor, module):
-      withControl(dPalette, PaletteView, p): discard
+      withControl(dPalette, PaletteView, _): discard
       status(kind & " added to the palette (" & extractFilename(customPalettePath(dRoot)) & ")")
   of "code":
     if editorOpenFile(dEditor, dCodePath): status("Code: " & dCodePath)

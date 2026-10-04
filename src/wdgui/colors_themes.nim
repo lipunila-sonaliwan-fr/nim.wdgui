@@ -1,6 +1,6 @@
 # CC BY-NC-SA 4.0 - jean-marc "jihem" quere 2026
 # Colors, themes (Windows 11 / macOS / Linux-GNOME look & feel) and per-control styles.
-import std/[options, strutils]
+import std/[options, os, strutils]
 export options
 
 type
@@ -70,13 +70,28 @@ proc paletteFor(accent: Color): seq[Color] =
   @[accent, hex"#E3008C", hex"#107C10", hex"#FF8C00", hex"#8764B8",
     hex"#00B7C3", hex"#D13438", hex"#498205", hex"#CA5010", hex"#4F6BED"]
 
+proc themeFonts(): seq[string] =
+  var env = getEnv("WDGUI_PATH")
+  env = if env.len > 0 and dirExists(env): env else: "."
+  env &= "/ttf/GoNotoEuropeAmericas.ttf"
+  return @[ env,
+            "/System/Library/Fonts/SFNS.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+            "C:/Windows/Fonts/arial.ttf",
+            "C:/Windows/Fonts/segoeui.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf" ]
+
 proc themeWindows11*(dark = false): Theme =
   result = Theme(name: "Windows 11" & (if dark: " sombre" else: ""), look: lfWindows, dark: dark,
     radius: 4, fieldRadius: 4, checkRadius: 4, borderWidth: 1, focusStyle: fsUnderline,
     buttonStyle: bsRaised, accentSelection: false, controlHeight: 32, lineHeight: 28,
     margin: 12, spacing: 8, checkSize: 20, textScale: 2, fontSize: 14,
-    fonts: @["C:/Windows/Fonts/segoeui.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-               "/System/Library/Fonts/Supplemental/Arial.ttf"])
+    fonts: themeFonts())
+
   if dark:
     result.windowBg = hex"#202020"; result.surface = hex"#2D2D2D"
     result.surfaceHover = hex"#323232"; result.surfacePressed = hex"#272727"
@@ -102,9 +117,8 @@ proc themeMacOS*(dark = false): Theme =
     radius: 6, fieldRadius: 5, checkRadius: 4, borderWidth: 1, focusStyle: fsHalo,
     buttonStyle: bsRaised, accentSelection: true, controlHeight: 28, lineHeight: 24,
     margin: 14, spacing: 8, checkSize: 16, textScale: 2, fontSize: 13,
-    fonts: @["/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Helvetica.ttc",
-               "/System/Library/Fonts/Supplemental/Arial.ttf",
-               "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf"])
+    fonts: themeFonts())
+
   if dark:
     result.windowBg = hex"#2B2B2B"; result.surface = hex"#5C5C5C"
     result.surfaceHover = hex"#666666"; result.surfacePressed = hex"#4A4A4A"
@@ -131,14 +145,8 @@ proc themeLinux*(dark = false): Theme =
     radius: 6, fieldRadius: 6, checkRadius: 4, borderWidth: 1, focusStyle: fsRing,
     buttonStyle: bsFlat, accentSelection: false, controlHeight: 34, lineHeight: 30,
     margin: 12, spacing: 8, checkSize: 18, textScale: 2, fontSize: 14,
-    fonts: @["/usr/share/fonts/cantarell/Cantarell-VF.otf",
-               "/usr/share/fonts/opentype/cantarell/Cantarell-VF.otf",
-               "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-               "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-               "/usr/share/fonts/TTF/DejaVuSans.ttf",
-               "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
-               "/usr/share/fonts/noto/NotoSans-Regular.ttf",
-               "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"])
+    fonts: themeFonts())
+
   if dark:
     result.windowBg = hex"#242424"; result.surface = hex"#3A3A3A"
     result.surfaceHover = hex"#454545"; result.surfacePressed = hex"#505050"
