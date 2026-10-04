@@ -194,3 +194,8 @@ It is a good place to see wdgui used for real:
 - modal dialogs (built-in ones and custom ones);
 - a Splitter, a TreeView, a Grid, a Toolbar, a MenuBar;
 - long-running processes that never freeze the interface.
+
+### One more thing!
+A small gesture that can - greatly - help us... \[Caffeine matters a lot for a team of neurodivergent folks: ASD, ADHD, GAD, HPI and/or THPI (members of **mensa.fr** and **triplenine.org**).\]
+
+[![Buy Me a Coffee](buymeacoffe-eng.png)](https://buymeacoffee.com/sonaliwan.fr)

@@ -1,0 +1,208 @@
+{
+  "name": "Moderne",
+  "defaultFormat": "Standard",
+  "formats": [
+    {
+      "name": "Standard",
+      "page": {
+        "paper": "A4",
+        "orientation": "portrait",
+        "before": "22",
+        "after": "20",
+        "indent": "22",
+        "margin-right": "22",
+        "header": "{title}",
+        "footer": "{project} · {page}/{pages}"
+      },
+      "tags": {
+        "body": {
+          "font": "Sans",
+          "size": "10.5",
+          "color": "#24292f",
+          "line": "1.5",
+          "align": "left",
+          "after": "6"
+        },
+        "title": {
+          "font": "Sans",
+          "size": "24",
+          "bold": "true",
+          "color": "#0f7b6c",
+          "after": "12",
+          "frame": "bottom",
+          "border": "#0f7b6c"
+        },
+        "h1": {
+          "font": "Sans",
+          "size": "17",
+          "bold": "true",
+          "color": "#0f7b6c",
+          "before": "14",
+          "after": "6"
+        },
+        "h2": {
+          "font": "Sans",
+          "size": "14",
+          "bold": "true",
+          "color": "#2f6f62",
+          "before": "12",
+          "after": "4"
+        },
+        "h3": {
+          "font": "Sans",
+          "size": "12",
+          "bold": "true",
+          "color": "#444444"
+        },
+        "quote": {
+          "italic": "true",
+          "color": "#57606a",
+          "border": "#0f7b6c",
+          "frame": "left",
+          "indent": "12"
+        },
+        "li": {
+          "indent": "16",
+          "after": "2"
+        },
+        "task": {
+          "indent": "16",
+          "after": "2"
+        },
+        "codeblock": {
+          "font": "Mono",
+          "size": "9.5",
+          "bg": "#f6f8fa",
+          "frame": "box",
+          "border": "#d0d7de"
+        },
+        "code": {
+          "font": "Mono",
+          "bg": "#f6f8fa",
+          "color": "#cf222e"
+        },
+        "strong": {
+          "bold": "true"
+        },
+        "em": {
+          "italic": "true"
+        },
+        "strike": {
+          "strike": "true"
+        },
+        "link": {
+          "color": "#0969da",
+          "underline": "true"
+        },
+        "wikilink": {
+          "color": "#0f7b6c",
+          "underline": "true"
+        },
+        "table": {
+          "border": "#d0d7de",
+          "size": "10"
+        },
+        "th": {
+          "bold": "true",
+          "bg": "#0f7b6c",
+          "color": "#ffffff"
+        },
+        "hr": {
+          "border": "#0f7b6c"
+        },
+        "header": {
+          "font": "Sans",
+          "size": "8",
+          "color": "#8c959f",
+          "align": "left"
+        },
+        "footer": {
+          "font": "Sans",
+          "size": "8",
+          "color": "#8c959f",
+          "align": "right"
+        }
+      }
+    },
+    {
+      "name": "Chapitre",
+      "page": {},
+      "tags": {
+        "title": {
+          "break": "true",
+          "size": "28"
+        }
+      }
+    }
+  ],
+  "labels": [
+    {
+      "name": "important",
+      "color": "#cf222e",
+      "format": ""
+    },
+    {
+      "name": "brouillon",
+      "color": "#bf8700",
+      "format": ""
+    },
+    {
+      "name": "annexe",
+      "color": "#6e7781",
+      "format": ""
+    },
+    {
+      "name": "référence",
+      "color": "#0f7b6c",
+      "format": ""
+    }
+  ],
+  "customTags": [
+    {
+      "name": "alerte",
+      "inline": false,
+      "props": {
+        "bg": "#ffebe9",
+        "border": "#cf222e",
+        "frame": "left",
+        "prefix": "Attention — ",
+        "indent": "10"
+      }
+    },
+    {
+      "name": "astuce",
+      "inline": false,
+      "props": {
+        "bg": "#dafbe1",
+        "border": "#1a7f37",
+        "frame": "left",
+        "prefix": "Astuce — ",
+        "indent": "10"
+      }
+    },
+    {
+      "name": "encadre",
+      "inline": false,
+      "props": {
+        "bg": "#f6f8fa",
+        "border": "#0f7b6c",
+        "frame": "box"
+      }
+    },
+    {
+      "name": "signature",
+      "inline": false,
+      "props": {
+        "align": "right",
+        "italic": "true"
+      }
+    },
+    {
+      "name": "surligne",
+      "inline": true,
+      "props": {
+        "bg": "#fff8c5"
+      }
+    }
+  ]
+}

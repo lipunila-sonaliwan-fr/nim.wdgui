@@ -1,0 +1,124 @@
+{
+  "wdnotes": 1,
+  "title": "Jardin partagé",
+  "mainNote": "n01",
+  "lexiconNote": "n10",
+  "template": "Classique",
+  "globalFormat": "",
+  "roots": [
+    "n01",
+    "n09",
+    "n10",
+    "n05bbf92f1"
+  ],
+  "notes": [
+    {
+      "id": "n01",
+      "title": "Jardin partagé des Sables",
+      "format": "",
+      "labels": [],
+      "created": "2026-09-20T10:00:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": [
+        "n02",
+        "n05",
+        "n08"
+      ]
+    },
+    {
+      "id": "n02",
+      "title": "Organisation",
+      "format": "",
+      "labels": [],
+      "created": "2026-09-20T10:05:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": [
+        "n03",
+        "n04"
+      ]
+    },
+    {
+      "id": "n03",
+      "title": "Calendrier des cultures",
+      "format": "",
+      "labels": [],
+      "created": "2026-09-20T10:10:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": []
+    },
+    {
+      "id": "n04",
+      "title": "Règles de vie",
+      "format": "",
+      "labels": [
+        "important"
+      ],
+      "created": "2026-09-20T10:15:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": []
+    },
+    {
+      "id": "n05",
+      "title": "Plantes",
+      "format": "Chapitre",
+      "labels": [],
+      "created": "2026-09-20T10:20:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": [
+        "n06",
+        "n07"
+      ]
+    },
+    {
+      "id": "n06",
+      "title": "Tomates",
+      "format": "",
+      "labels": [
+        "référence"
+      ],
+      "created": "2026-09-20T10:25:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": []
+    },
+    {
+      "id": "n07",
+      "title": "Aromatiques",
+      "format": "",
+      "labels": [],
+      "created": "2026-09-20T10:30:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": []
+    },
+    {
+      "id": "n08",
+      "title": "Compost",
+      "format": "",
+      "labels": [
+        "brouillon"
+      ],
+      "created": "2026-09-20T10:35:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": []
+    },
+    {
+      "id": "n09",
+      "title": "Annexe : contacts",
+      "format": "",
+      "labels": [
+        "annexe"
+      ],
+      "created": "2026-09-20T10:40:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": []
+    },
+    {
+      "id": "n10",
+      "title": "Lexique",
+      "format": "",
+      "labels": [],
+      "created": "2026-09-20T10:45:00",
+      "modified": "2026-09-30T18:00:00",
+      "children": []
+    }
+  ]
+}

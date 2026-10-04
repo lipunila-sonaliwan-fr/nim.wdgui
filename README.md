@@ -53,7 +53,7 @@ Not covered: HTML, PDF viewer, Word processor, Spreadsheet, Camera, Conference, 
 
 `themeWindows11`, `themeMacOS` and `themeLinux` (GNOME/Adwaita), each light or dark, plus `themeNative()`. Switch at runtime with `winId.theme = themeMacOS(dark = true)`. Every `Theme` field can be edited, and each control has a `style` (background, text, border, accent, radius, border width) that overrides the theme.
 
-[![Buy Me a Coffee](demo.png)](https://buymeacoffee.com/sonaliwan.fr)
+![](demo.png)
 
 ## Project layout
 
@@ -78,32 +78,46 @@ examples/panel_demo.nim          scrollable panels
 examples/dialogs_demo.nim        dialog boxes
 ```
 
-### Version 1.3.0
+## Advanced controls
 
 + Grid control
 + Panel control
 + Dialog boxes (alert, confirm, prompt, find, replace and file, printer, color and font selectors)
 
-[![Buy Me a Coffee](dialogs.png)](https://buymeacoffee.com/sonaliwan.fr)
+![](dialogs.png)
 
-### Version 1.3.1
+### More ?
 
-Sample app, what's about a Nim editor ?
-[![Buy Me a Coffee](wdnim.png)](https://buymeacoffee.com/sonaliwan.fr)
++ PDF control included (thanks to the [PDFium team](https://github.com/bblanchon/pdfium-binaries) for their help)
 
-## Known limitations
+![](pdf.png)
+
++ Adds an environment variable (WDGUI_PATH) to define the root directory for the `linOS`, `macOS`, and `winOS` folders, applicable to all applications using wdgui.
+
+### Known limitations
 
 No anti-aliasing of shapes; bitmap font without `-d:sdlttf`; containers do not scroll (list-type controls do); no IME beyond SDL text input; no accessibility support. With the default thread-per-event mode, two close events may be handled out of order; use `dispatchMode = dmSequential` when order matters.
 
-## Version 1.4.2 Wahou...
+# Apps empowered by `wdgui`: wdnim... 
 
-+ LSP
+### What's about a Nim editor?
+![](apps/wdnim/wdnim.png)
 
-[![Buy Me a Coffee](lsp.png)](https://buymeacoffee.com/sonaliwan.fr)
+**Everything you need:** code editor with a project tree, a minimap, a jGRASP-like control structure diagram, git status, run configurations and a launch console.
 
-+ Form designer & code generation
+![](wdnim.png)
 
-[![Buy Me a Coffee](designer.png)](https://buymeacoffee.com/sonaliwan.fr)
++ [Read me!](apps/wdnim/README.md)
+
+**Connected to the Nim LSP server: real-time checking, autocompletion...**
+
+![](lsp.png)
+
+**`wdgui` Form designer included with code generation.**
+
+![](designer.png)
+
+## Wow... "It's A-M-A-Z-I-N-G! 🤣"
 
 Originally, wdnim was supposed to be a demonstration project showcasing the use of the wdgui library and... I think I got a little carried away. After adding the code editor, I felt the urge to include a file tree, a minimap, a process diagram, server integration for error feedback, code completion, and so on... until I came up with a somewhat crazy idea: why not add a designer that generates code into a dedicated file for each form? And why not have it generate the event-handling code as well? Today, I have reached a stage where wdnim is beginning to become a serious alternative for anyone wanting to develop applications in Nim.
 
@@ -113,13 +127,30 @@ Honestly, I never thought I would get this far in such a short time. Nim is trul
 
 Ah... if only I could devote a little more time to it... and a little less time to working solely to keep the refrigerator stocked.
 
-## Version 1.5.3
+# wdnotes 
+(currently available only in French)
 
-+ Add a PDF control (thanks to the [PDFium team](https://github.com/bblanchon/pdfium-binaries) for their help)
+![](apps/wdnotes/wdnotes.png)
 
-+ Adds an environment variable (WDGUI_PATH) to define the root directory for the `linOS`, `macOS`, and `winOS` folders, applicable to all applications using wdgui.
+Hierarchical, linked, and formatted Markdown notes.
 
-[![Buy Me a Coffee](pdf.png)](https://buymeacoffee.com/sonaliwan.fr)
++ [Lisez-moi](apps/wdnotes/README.md)
+
++ [Guide de prise en main](apps/wdnotes/Guide-de-prise-en-main-de-wdnotes.md)
+
+### Windows
+![](winx64-wdnotes.png)
+
+### macOS
+![](macarm-wdnotes.png)
+
+## wdreka
+
+![](apps/wdreka/wdreka.png)
+
+A visual CP-SAT constraint editor.
+
+![](macarm-wdreka.png)
 
 ### One more thing!
 A small gesture that can - greatly - help us... \[Caffeine matters a lot for a team of neurodivergent folks: ASD, ADHD, GAD, HPI and/or THPI (members of **mensa.fr** and **triplenine.org**).\]
