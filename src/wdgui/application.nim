@@ -73,7 +73,7 @@ proc dispatchLoop() {.thread.} =
       activeThreads.add th
     reap(activeThreads, true)
 
-var spawned: seq[ptr Thread[Event]]
+var spawned {.threadvar.}: seq[ptr Thread[Event]]
 
 proc spawnNow(e: Event) {.nimcall, gcsafe.} =
   # Runs an event on a new thread immediately (windows with `alwaysThreaded`, e.g. dialogs):
