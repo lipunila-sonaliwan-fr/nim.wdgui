@@ -1,0 +1,664 @@
+27:proc rect*(x, y, w, h: float): Rect {.inline.} = Rect(x: x, y: y, w: w, h: h)
+29:proc containsPoint*(r: Rect, x, y: float): bool =
+32:proc shrink*(r: Rect, m: float): Rect =
+35:proc shrink*(r: Rect, mx, my: float): Rect =
+38:proc intersect*(a, b: Rect): Rect =
+45:proc newDrawing*(ren: SDL_Renderer): Drawing = Drawing(ren: ren, scale: 2.0)
+67:proc clipRect*(d: Drawing): Rect =
+71:proc isClippedOut*(d: Drawing, r: Rect): bool =
+77:proc pushClip*(d: Drawing, r: Rect) =
+81:proc popClip*(d: Drawing) =
+85:proc suspendClip*(d: Drawing): seq[Rect] =
+90:proc restoreClip*(d: Drawing, s: seq[Rect]) =
+96:proc clearWith*(d: Drawing, c: Color) =
+100:proc fillRect*(d: Drawing, r: Rect, c: Color) =
+106:proc line*(d: Drawing, x1, y1, x2, y2: float, c: Color, ep = 1.0) =
+123:proc fillRoundRect*(d: Drawing, r: Rect, radius: float, c: Color) =
+153:proc strokeRoundRect*(d: Drawing, r: Rect, radius: float, c: Color, ep = 1.0) =
+181:proc strokeRect*(d: Drawing, r: Rect, c: Color, ep = 1.0) = d.strokeRoundRect(r, 0, c, ep)
+183:proc fillEllipse*(d: Drawing, r: Rect, c: Color) =
+197:proc strokeEllipse*(d: Drawing, r: Rect, c: Color, ep = 1.0) =
+210:proc fillCircle*(d: Drawing, cx, cy, radius: float, c: Color) =
+213:proc strokeCircle*(d: Drawing, cx, cy, radius: float, c: Color, ep = 1.0) =
+216:proc fillPolygon*(d: Drawing, pts: openArray[Point], c: Color) =
+242:proc triangle*(d: Drawing, cx, cy, size: float, dir: char, c: Color) =
+251:proc drawCheckMark*(d: Drawing, r: Rect, c: Color, ep = 2.0) =
+255:proc shadow*(d: Drawing, r: Rect, radius: float, c: Color) =
+260:proc drawFocus*(d: Drawing, t: Theme, r: Rect, radius: float) =
+266:proc drawTexture*(d: Drawing, tex: SDL_Texture, dst: Rect) =
+278:proc configure*(d: Drawing, t: Theme) =
+295:proc dispose*(d: Drawing) =
+301:proc textHeight*(d: Drawing): float =
+306:proc textWidth*(d: Drawing, s: string): float =
+314:proc text*(d: Drawing, x, y: float, s: string, c: Color) =
+345:proc ellipsize*(d: Drawing, s: string, width: float): string =
+357:proc textIn*(d: Drawing, r: Rect, s: string, c: Color, al = alLeft, margin = 0.0) =
+20:proc newChart*(chartKind = ckColumn, title = ""): Chart =
+24:proc ensureSize*(g: Chart, seriesIdx, index: int) =
+35:method typeName*(g: Chart): string = "Chart"
+37:method preferredSize*(g: Chart, d: Drawing, t: Theme): tuple[w, h: float] = (320.0, 220.0)
+39:method draw*(g: Chart, d: Drawing, t: Theme) =
+149:proc newCalendar*(date = ""): Calendar =
+194:method typeName*(c: Calendar): string = "Calendar"
+196:method valueText*(c: Calendar): string =
+199:method setValueText*(c: Calendar, v: string) =
+211:method preferredSize*(c: Calendar, d: Drawing, t: Theme): tuple[w, h: float] =
+214:method draw*(c: Calendar, d: Drawing, t: Theme) =
+247:method onMouse*(c: Calendar, e: MouseEvent) =
+265:method onKey*(c: Calendar, e: KeyEvent): bool =
+278:method onWheel*(c: Calendar, dx, dy: float): bool =
+295:proc newKanban*(): Kanban =
+327:proc moveCard*(k: Kanban, l1, c1, l2: int, pos = -1) =
+337:method typeName*(k: Kanban): string = "Kanban"
+339:method preferredSize*(k: Kanban, d: Drawing, t: Theme): tuple[w, h: float] =
+342:method draw*(k: Kanban, d: Drawing, t: Theme) =
+368:method onMouse*(k: Kanban, e: MouseEvent) =
+408:proc newTreeMap*(): TreeMap =
+436:method typeName*(tm: TreeMap): string = "TreeMap"
+438:method preferredSize*(tm: TreeMap, d: Drawing, t: Theme): tuple[w, h: float] = (320.0, 220.0)
+440:method draw*(tm: TreeMap, d: Drawing, t: Theme) =
+462:method onMouse*(tm: TreeMap, e: MouseEvent) =
+487:proc newGantt*(): Gantt =
+501:method typeName*(g: Gantt): string = "Gantt Chart"
+503:method preferredSize*(g: Gantt, d: Drawing, t: Theme): tuple[w, h: float] = (480.0, 220.0)
+505:method draw*(g: Gantt, d: Drawing, t: Theme) =
+542:method onMouse*(g: Gantt, e: MouseEvent) =
+550:method onKey*(g: Gantt, e: KeyEvent): bool =
+562:method onWheel*(g: Gantt, dx, dy: float): bool =
+10:proc rgb*(r, g, b: int, a = 255): Color =
+14:proc hex*(s: string): Color =
+25:proc withAlpha*(c: Color, a: int): Color = rgb(c.r.int, c.g.int, c.b.int, a)
+27:proc mix*(a, b: Color, t: float): Color =
+115:proc themeMacOS*(dark = false): Theme =
+142:proc themeLinux*(dark = false): Theme =
+170:proc themeNative*(dark = false): Theme =
+87:proc pendingEvents*(): int =
+466:proc runApplication*() =
+475:proc runApplicationInBackground*() =
+486:proc waitApplicationEnd*() =
+492:proc quitApplication*() =
+102:proc newGrid*(multiSelection = false, editable = false, fillMode = fmProgrammed): Grid =
+110:method typeName*(g: Grid): string = "Grid"
+111:method typeName*(c: GridColumn): string = "Grid Column"
+113:method onAttach*(g: Grid, w: Window) =
+116:proc columnIndex*(g: Grid, name: string): int =
+131:proc addColumn*(g: Grid, name: string, title = "", kind = gcText, width = 120.0,
+147:proc deleteColumn*(g: Grid, c: int) =
+173:proc moveColumn*(g: Grid, c, position: int) =
+180:proc addLine*(g: Grid, values: openArray[string]): int =
+192:proc displayValue*(col: GridColumn, s: string): string =
+206:proc aggregate*(g: Grid, c: int, kind: FooterKind, first = 0, last = -1): float =
+273:proc cellEditable*(g: Grid, r, c: int): bool =
+288:proc sortBy*(g: Grid, c: int, ascending = true) =
+308:proc setBreak*(g: Grid, c: int) =
+313:proc seek*(g: Grid, c: int, value: string, exact = true, start = 0): int =
+322:proc shownColumns*(g: Grid): seq[int] =
+326:proc findText*(g: Grid, text: string, start = 0): tuple[row, column: int] =
+336:proc selectRow*(g: Grid, r: int, extend = false) =
+473:proc startEdit*(g: Grid, r, c: int, initial = "", replace = false) =
+566:method preferredSize*(g: Grid, d: Drawing, t: Theme): tuple[w, h: float] =
+569:method draw*(g: Grid, d: Drawing, t: Theme) =
+655:method hitInfo*(g: Grid, x, y: float): tuple[index, column: int] =
+665:method mouseCursor*(g: Grid, x, y: float): int =
+673:method acceptsText*(g: Grid): bool =
+676:method onFocus*(g: Grid, gained: bool) =
+681:method onMouse*(g: Grid, e: MouseEvent) =
+745:method onKey*(g: Grid, e: KeyEvent): bool =
+824:method onText*(g: Grid, s: string) =
+831:method onWheel*(g: Grid, dx, dy: float): bool =
+840:method onPopupChoice*(g: Grid, i: int, text: string) =
+847:method valueText*(g: Grid): string = $(g.current + 1)
+849:method setValueText*(g: Grid, v: string) =
+859:proc parseCsvText*(text: string, sep = ','): seq[seq[string]] =
+927:proc toCsv*(g: Grid, sep = ',', header = true): string =
+937:proc fromCsv*(g: Grid, text: string, sep = ',', header = true, append = false): int =
+975:proc toJson*(g: Grid, pretty = true): string =
+995:proc fromJson*(g: Grid, text: string, append = false): int =
+1045:proc gridColumnIndex*(id: ControlId, name: string): int =
+1049:proc gridAddColumn*(id: ControlId, name: string, title = "", kind = gcText, width = 120.0,
+1056:proc gridColumn*(id: ControlId, col: int): ControlId =
+1060:proc gridColumn*(id: ControlId, col: string): ControlId =
+1063:proc gridColumnCount*(id: ControlId): int =
+1066:proc gridDeleteColumn*(id: ControlId, col: int) =
+1069:proc gridDeleteColumn*(id: ControlId, col: string) =
+1072:proc gridMoveColumn*(id: ControlId, col, position: int) =
+1076:proc gridMoveColumn*(id: ControlId, col: string, position: int) =
+1079:proc gridShowColumn*(id: ControlId, col: int, visible = true) =
+1083:proc gridShowColumn*(id: ControlId, col: string, visible = true) =
+1086:proc gridSetColumnWidth*(id: ControlId, col: int, width: float) =
+1090:proc gridSetColumnWidth*(id: ControlId, col: string, width: float) =
+1093:proc gridSetChoices*(id: ControlId, col: int, choices: openArray[string]) =
+1098:proc gridSetChoices*(id: ControlId, col: string, choices: openArray[string]) =
+1101:proc gridSetButtonCaption*(id: ControlId, col: int, caption: string) =
+1105:proc gridSetButtonCaption*(id: ControlId, col: string, caption: string) =
+1108:proc gridSetDecimals*(id: ControlId, col: int, decimals: int) =
+1112:proc gridSetDecimals*(id: ControlId, col: string, decimals: int) =
+1115:proc gridSetFooter*(id: ControlId, col: int, kind: FooterKind) =
+1119:proc gridSetFooter*(id: ControlId, col: string, kind: FooterKind) =
+1122:proc gridFooterValue*(id: ControlId, col: int, kind = fkNone): float =
+1129:proc gridFooterValue*(id: ControlId, col: string, kind = fkNone): float =
+1133:proc gridAddLine*(id: ControlId, values: varargs[string]): int =
+1139:proc gridInsertLine*(id: ControlId, row: int, values: varargs[string]) =
+1146:proc gridModifyLine*(id: ControlId, row: int, values: varargs[string]) =
+1152:proc gridDeleteLine*(id: ControlId, row: int) =
+1159:proc gridDeleteAll*(id: ControlId) =
+1162:proc gridLine*(id: ControlId, row: int): seq[string] =
+1166:proc gridCount*(id: ControlId): int =
+1170:proc gridCell*(id: ControlId, row, col: int): string =
+1175:proc gridCell*(id: ControlId, row: int, col: string): string =
+1178:proc gridSetCell*(id: ControlId, row, col: int, value: string) =
+1184:proc gridSetCell*(id: ControlId, row: int, col: string, value: string) =
+1187:proc gridSetCellColor*(id: ControlId, row, col: int, background = Transparent, text = Transparent) =
+1195:proc gridSetCellColor*(id: ControlId, row: int, col: string, background = Transparent, text = Transparent) =
+1199:proc gridSelect*(id: ControlId, rank = 1): int =
+1209:proc gridSelectCount*(id: ControlId): int =
+1214:proc gridSelectPlus*(id: ControlId, row: int) =
+1221:proc gridSelectMinus*(id: ControlId, row: int) =
+1225:proc gridSelectAll*(id: ControlId) =
+1230:proc gridCurrentColumn*(id: ControlId): int =
+1234:proc gridSetEditable*(id: ControlId, editable: bool) =
+1240:proc gridSetColumnEdit*(id: ControlId, col: int, mode: EditMode) =
+1244:proc gridSetColumnEdit*(id: ControlId, col: string, mode: EditMode) =
+1247:proc gridSetLineEdit*(id: ControlId, row: int, mode: EditMode) =
+1251:proc gridSetCellEdit*(id: ControlId, row, col: int, mode: EditMode) =
+1258:proc gridSetCellEdit*(id: ControlId, row: int, col: string, mode: EditMode) =
+1261:proc gridStartEdit*(id: ControlId, row, col: int) =
+1264:proc gridStartEdit*(id: ControlId, row: int, col: string) =
+1267:proc gridSetFillMode*(id: ControlId, mode: FillMode) =
+1271:proc gridSort*(id: ControlId, col: int, ascending = true) =
+1274:proc gridSort*(id: ControlId, col: string, ascending = true) =
+1277:proc gridSeek*(id: ControlId, col: int, value: string, exact = true, start = 1): int =
+1284:proc gridSeek*(id: ControlId, col: string, value: string, exact = true, start = 1): int =
+1287:proc gridFind*(id: ControlId, text: string, start = 1, select = true): tuple[row, column: int] =
+1300:proc gridSetBreak*(id: ControlId, col: int) =
+1304:proc gridSetBreak*(id: ControlId, col: string) =
+1307:proc gridAddFormat*(id: ControlId, col: int, op: ConditionOp, value = "",
+1314:proc gridAddFormat*(id: ControlId, col: string, op: ConditionOp, value = "",
+1318:proc gridClearFormats*(id: ControlId) =
+1322:proc gridToCsv*(id: ControlId, sep = ',', header = true): string =
+1325:proc gridFromCsv*(id: ControlId, text: string, sep = ',', header = true, append = false): int =
+1328:proc gridSaveCsv*(id: ControlId, path: string, sep = ',', header = true): bool =
+1331:proc gridLoadCsv*(id: ControlId, path: string, sep = ',', header = true, append = false): int =
+1337:proc gridToJson*(id: ControlId, pretty = true): string =
+1340:proc gridFromJson*(id: ControlId, text: string, append = false): int =
+1343:proc gridSaveJson*(id: ControlId, path: string, pretty = true): bool =
+1346:proc gridLoadJson*(id: ControlId, path: string, append = false): int =
+13:proc caption*(id: ControlId): string =
+22:proc value*(id: ControlId): string =
+29:proc valueNum*(id: ControlId): float =
+35:proc visible*(id: ControlId): bool =
+41:proc state*(id: ControlId): ControlState =
+47:proc tooltip*(id: ControlId): string =
+53:proc name*(id: ControlId): string =
+59:proc x*(id: ControlId): float =
+62:proc y*(id: ControlId): float =
+65:proc width*(id: ControlId): float =
+68:proc height*(id: ControlId): float =
+86:proc color*(id: ControlId): Color =
+104:proc style*(id: ControlId): Style =
+110:proc controlType*(id: ControlId): string =
+113:proc parentControl*(id: ControlId): ControlId =
+117:proc windowOf*(id: ControlId): ControlId =
+121:proc children*(id: ControlId): seq[ControlId] =
+134:proc controlByName*(winId: ControlId, n: string): ControlId =
+140:proc setFocus*(id: ControlId) =
+144:proc currentControl*(winId: ControlId): ControlId =
+149:proc deleteControl*(id: ControlId) =
+160:proc theme*(winId: ControlId): Theme =
+166:proc closeWindow*(winId: ControlId) =
+170:proc refresh*(id: ControlId) =
+174:proc openContextMenu*(id: ControlId, options: openArray[string], x = -1.0, y = -1.0) =
+186:proc listAdd*(id: ControlId, s: string): int =
+191:proc listInsert*(id: ControlId, s: string, index: int) =
+194:proc listDelete*(id: ControlId, index: int) =
+197:proc listDeleteAll*(id: ControlId) =
+200:proc listSelect*(id: ControlId, rank = 1): int =
+210:proc listSelectPlus*(id: ControlId, index: int) =
+213:proc listSelectMinus*(id: ControlId, index: int) =
+217:proc listCount*(id: ControlId): int =
+220:proc listItem*(id: ControlId, index: int): string =
+225:proc listModify*(id: ControlId, s: string, index: int) =
+229:proc listSeek*(id: ControlId, s: string, exact = true): int =
+238:proc checkBoxValue*(id: ControlId, index: int): bool =
+242:proc checkBoxSet*(id: ControlId, index: int, v: bool) =
+246:proc checkBoxAdd*(id: ControlId, caption: string, checked = false) =
+251:proc radioAdd*(id: ControlId, caption: string) =
+256:proc minBound*(id: ControlId): float =
+264:proc maxBound*(id: ControlId): float =
+288:proc rangeValues*(id: ControlId): tuple[lower, upper: float] =
+291:proc rangeSet*(id: ControlId, lower, upper: float) =
+298:proc tableAddColumn*(id: ControlId, title: string, width = 120.0, alignment = alLeft) =
+301:proc tableAddLine*(id: ControlId, vals: varargs[string]): int =
+307:proc tableInsertLine*(id: ControlId, index: int, vals: varargs[string]) =
+314:proc tableDelete*(id: ControlId, index: int) =
+321:proc tableDeleteAll*(id: ControlId) =
+328:proc tableSelect*(id: ControlId, rank = 1): int =
+337:proc tableSelectPlus*(id: ControlId, index: int) =
+340:proc tableCount*(id: ControlId): int =
+343:proc tableCell*(id: ControlId, line, column: int): string =
+348:proc tableSetCell*(id: ControlId, line, column: int, v: string) =
+354:proc tableLine*(id: ControlId, line: int): seq[string] =
+358:proc tableSort*(id: ControlId, column: int, ascending = true) =
+363:proc treeAdd*(id: ControlId, path: string, expanded = false) =
+369:proc treeDelete*(id: ControlId, path: string) =
+372:proc treeDeleteAll*(id: ControlId) =
+378:proc treeExpand*(id: ControlId, path: string) =
+385:proc treeCollapse*(id: ControlId, path: string) =
+390:proc treeIsExpanded*(id: ControlId, path: string): bool =
+396:proc treeSelect*(id: ControlId): string =
+400:proc treeSelectPlus*(id: ControlId, path: string) =
+410:proc treeCount*(id: ControlId): int =
+415:proc tabAdd*(id: ControlId, title: string, layout = lkVertical): ControlId =
+423:proc grAddData*(id: ControlId, seriesIdx, index: int, v: float) =
+430:proc grCategoryLabel*(id: ControlId, index: int, s: string) =
+436:proc grSeriesLabel*(id: ControlId, seriesIdx: int, s: string) =
+442:proc grType*(id: ControlId, t: ChartKind) =
+445:proc grTitle*(id: ControlId, s: string) =
+448:proc grLegend*(id: ControlId, v: bool) =
+451:proc grDeleteAll*(id: ControlId) =
+457:proc grDraw*(id: ControlId) = refresh(id)
+461:proc looperAdd*(id: ControlId, vals: varargs[string]): int =
+468:proc looperDelete*(id: ControlId, index: int) =
+474:proc looperDeleteAll*(id: ControlId) =
+480:proc looperSelect*(id: ControlId): int =
+484:proc looperSelectPlus*(id: ControlId, index: int) =
+487:proc looperCount*(id: ControlId): int =
+490:proc looperValue*(id: ControlId, line, attribute: int): string =
+497:proc kanbanAddList*(id: ControlId, title: string): int =
+503:proc kanbanAdd*(id: ControlId, list: int, card: string): int =
+511:proc kanbanDelete*(id: ControlId, list, card: int) =
+516:proc kanbanMove*(id: ControlId, list, card, destList: int, position = -1) =
+520:proc kanbanCard*(id: ControlId, list, card: int): string =
+525:proc kanbanCount*(id: ControlId, list: int): int =
+529:proc kanbanSelect*(id: ControlId): tuple[list, card: int] =
+534:proc menuAdd*(id: ControlId, path: string) =
+540:proc treeMapAdd*(id: ControlId, caption: string, v: float) =
+543:proc treeMapDeleteAll*(id: ControlId) =
+548:proc ganttAddTask*(id: ControlId, caption: string, start, duration: float, progress = 0.0): int =
+554:proc ganttSetProgress*(id: ControlId, task: int, progress: float) =
+558:proc ganttDeleteAll*(id: ControlId) =
+563:proc calendarShow*(id: ControlId, year, month: int) =
+573:proc editSelection*(id: ControlId): tuple[start, stop: int] =
+46:proc newPanel*(layout = lkVertical, scrollbars = smAlways, margin = -1.0, spacing = -1.0,
+52:method typeName*(p: Panel): string = "Panel"
+116:method preferredSize*(p: Panel, d: Drawing, t: Theme): tuple[w, h: float] =
+121:method layoutChildren*(p: Panel, d: Drawing, t: Theme) =
+135:method hitChildren*(p: Panel, x, y: float): bool =
+140:method draw*(p: Panel, d: Drawing, t: Theme) =
+169:method drawOverlay*(p: Panel, d: Drawing, t: Theme) =
+197:method onMouse*(p: Panel, e: MouseEvent) =
+241:method onWheel*(p: Panel, dx, dy: float): bool =
+256:proc ensureVisible*(p: Panel, c: Control, margin = 8.0) =
+267:method onDescendantFocus*(p: Panel, c: Control) =
+272:proc panelScrollTo*(id: ControlId, x, y: float) =
+280:proc panelScrollBy*(id: ControlId, dx, dy: float) =
+287:proc panelScrollPosition*(id: ControlId): tuple[x, y: float] =
+290:proc panelContentSize*(id: ControlId): tuple[w, h: float] =
+294:proc panelViewportSize*(id: ControlId): tuple[w, h: float] =
+297:proc panelSetScrollbars*(id: ControlId, mode: ScrollbarMode) =
+301:proc panelEnsureVisible*(id: ControlId, child: ControlId) =
+29:method draw*(p: PopupList, d: Drawing, t: Theme) =
+56:method onMouse*(p: PopupList, e: MouseEvent) =
+63:method onKey*(p: PopupList, e: KeyEvent): bool =
+81:method onWheel*(p: PopupList, dx, dy: float): bool =
+86:proc openPopupList*(owner: Control, elements: seq[string], x, y, minWidth: float, sel = -1) =
+114:proc addItem*(l: ListBase, s: string): int =
+119:proc insertItem*(l: ListBase, i: int, s: string) =
+125:proc deleteItem*(l: ListBase, i: int) =
+132:proc clearItems*(l: ListBase) =
+137:proc selectItem*(l: ListBase, i: int, extend = false) =
+143:proc firstSelected*(l: ListBase): int =
+148:method valueText*(l: ListBase): string = $(l.firstSelected + 1)
+150:method setValueText*(l: ListBase, v: string) =
+164:proc newListBox*(elements: openArray[string] = [], multiSelection = false): ListBox =
+180:proc drawSelectedRow*(d: Drawing, t: Theme, c: Control, r: Rect): Color =
+190:method typeName*(l: ListBox): string = "List Box"
+192:method preferredSize*(l: ListBox, d: Drawing, t: Theme): tuple[w, h: float] = (200.0, t.lineHeight * 6 + 4)
+194:method draw*(l: ListBox, d: Drawing, t: Theme) =
+209:method onMouse*(l: ListBox, e: MouseEvent) =
+239:method onKey*(l: ListBox, e: KeyEvent): bool =
+263:method onWheel*(l: ListBox, dx, dy: float): bool =
+273:proc newComboBox*(elements: openArray[string] = [], selection = 0): ComboBox =
+283:method typeName*(c: ComboBox): string = "Combo Box"
+285:method preferredSize*(c: ComboBox, d: Drawing, t: Theme): tuple[w, h: float] =
+290:method draw*(c: ComboBox, d: Drawing, t: Theme) =
+307:method onMouse*(c: ComboBox, e: MouseEvent) =
+310:method onPopupChoice*(c: ComboBox, i: int, text: string) =
+314:method onKey*(c: ComboBox, e: KeyEvent): bool =
+353:proc newTable*(multiSelection = false): TableControl =
+359:proc addColumn*(tb: TableControl, title: string, width = 120.0, alignment = alLeft) =
+362:proc addLine*(tb: TableControl, vals: openArray[string]): int =
+367:proc selectRow*(tb: TableControl, i: int, extend = false) =
+373:proc sortBy*(tb: TableControl, col: int, ascending = true) =
+405:method typeName*(tb: TableControl): string = "Table"
+407:method valueText*(tb: TableControl): string =
+412:method setValueText*(tb: TableControl, v: string) =
+416:method preferredSize*(tb: TableControl, d: Drawing, t: Theme): tuple[w, h: float] =
+419:method draw*(tb: TableControl, d: Drawing, t: Theme) =
+469:method mouseCursor*(tb: TableControl, x, y: float): int =
+475:method onMouse*(tb: TableControl, e: MouseEvent) =
+504:method onKey*(tb: TableControl, e: KeyEvent): bool =
+524:method onWheel*(tb: TableControl, dx, dy: float): bool =
+547:proc newTreeView*(): TreeView =
+557:proc visibleNodes*(a: TreeView): seq[tuple[n: TreeNode, level: int]] = walkTree(a.roots, 0, result)
+559:proc pathOf*(n: TreeNode): string =
+567:proc findPath*(a: TreeView, path: string): TreeNode =
+578:proc addPath*(a: TreeView, path: string): TreeNode =
+593:proc deleteNode*(a: TreeView, n: TreeNode) =
+608:proc toggle*(a: TreeView, n: TreeNode) =
+623:method typeName*(a: TreeView): string = "TreeView"
+625:method valueText*(a: TreeView): string = (if a.selection != nil: pathOf(a.selection) else: "")
+627:method setValueText*(a: TreeView, v: string) = a.selection = a.findPath(v)
+629:method preferredSize*(a: TreeView, d: Drawing, t: Theme): tuple[w, h: float] = (220.0, t.lineHeight * 8 + 4)
+631:method draw*(a: TreeView, d: Drawing, t: Theme) =
+652:method onMouse*(a: TreeView, e: MouseEvent) =
+667:method onKey*(a: TreeView, e: KeyEvent): bool =
+702:method onWheel*(a: TreeView, dx, dy: float): bool =
+716:proc newLooper*(rowHeight = 0.0): Looper =
+727:method typeName*(z: Looper): string = "Looper"
+729:method valueText*(z: Looper): string = $(z.selection + 1)
+731:method setValueText*(z: Looper, v: string) =
+735:method preferredSize*(z: Looper, d: Drawing, t: Theme): tuple[w, h: float] = (260.0, 300.0)
+737:method draw*(z: Looper, d: Drawing, t: Theme) =
+758:method onMouse*(z: Looper, e: MouseEvent) =
+767:method onKey*(z: Looper, e: KeyEvent): bool =
+784:method onWheel*(z: Looper, dx, dy: float): bool =
+801:proc newMenuBar*(): MenuBar =
+806:proc addMenuPath*(m: MenuBar, path: string) =
+829:method typeName*(m: MenuBar): string = "Menu"
+831:method preferredSize*(m: MenuBar, d: Drawing, t: Theme): tuple[w, h: float] = (200.0, t.lineHeight + 6)
+833:method draw*(m: MenuBar, d: Drawing, t: Theme) =
+844:method onMouse*(m: MenuBar, e: MouseEvent) =
+853:method onPopupChoice*(m: MenuBar, i: int, text: string) =
+149:template guarded*(body: untyped) =
+160:proc stopPropagation*(ev: var Event) = ev.stopped = true
+163:proc propagationStopped*(ev: Event): bool = ev.stopped
+165:proc wakeUI*() =
+173:proc markDirty*(c: Control) =
+176:proc control*(id: ControlId): Control =
+182:template withControl*(id: ControlId, T: typedesc, c, body: untyped) =
+202:template readControl*(id: ControlId, T: typedesc, c, body: untyped) =
+215:proc initControl*(c: Control, caption = "") =
+222:method onAttach*(c: Control, w: Window) {.base.} = discard
+224:proc attach*(c: Control, f: Window) =
+235:proc emit*(c: Control, kind: EventKind, index = 0, text = "", column = 0,
+248:proc propagationChain*(id: ControlId): seq[ControlId] =
+259:proc isActive*(c: Control): bool =
+267:proc isGrayed*(c: Control): bool =
+273:proc textColor*(c: Control, t: Theme): Color =
+276:proc radiusOf*(c: Control, t: Theme): float = c.style.radius.get(t.radius)
+278:proc formatNumber*(v: float): string =
+284:method draw*(c: Control, d: Drawing, t: Theme) {.base.} = discard
+286:method preferredSize*(c: Control, d: Drawing, t: Theme): tuple[w, h: float] {.base.} =
+289:method onMouse*(c: Control, e: MouseEvent) {.base.} = discard
+291:method onKey*(c: Control, e: KeyEvent): bool {.base.} = false      # true = key consumed
+293:method onText*(c: Control, s: string) {.base.} = discard
+295:method onWheel*(c: Control, dx, dy: float): bool {.base.} = false  # true = consumed
+297:method onFocus*(c: Control, gained: bool) {.base.} = discard
+299:method acceptsText*(c: Control): bool {.base.} = false
+301:method acceptsTab*(c: Control): bool {.base.} = false  # true: Tab goes to onKey instead of moving the focus
+303:method mouseCursor*(c: Control, x, y: float): int {.base.} = SDL_SYSTEM_CURSOR_DEFAULT
+305:method valueText*(c: Control): string {.base.} = c.caption
+307:method setValueText*(c: Control, v: string) {.base.} = c.caption = v
+309:method valueNum*(c: Control): float {.base.} =
+315:method setValueNum*(c: Control, v: float) {.base.} = c.setValueText(formatNumber(v))
+317:method typeName*(c: Control): string {.base.} = "Control"
+319:method isDefaultButton*(c: Control): bool {.base.} = false
+321:method isCancelButton*(c: Control): bool {.base.} = false
+324:method hitInfo*(c: Control, x, y: float): tuple[index, column: int] {.base.} = (0, 0)
+326:method onPopupChoice*(c: Control, i: int, text: string) {.base.} =
+330:method typeName*(c: Container): string = "Supercontrol"
+332:method typeName*(c: Window): string = "Window"
+334:proc marginOf*(k: Container, t: Theme): float = (if k.margin >= 0: k.margin else: t.margin)
+336:proc spacingOf*(k: Container, t: Theme): float = (if k.spacing >= 0: k.spacing else: t.spacing)
+338:method contentArea*(k: Container, t: Theme): Rect {.base.} = k.rect.shrink(k.marginOf(t))
+340:method childShown*(k: Container, i: int): bool {.base.} =
+343:proc prefSizeOf*(c: Control, d: Drawing, t: Theme): tuple[w, h: float] =
+348:proc layoutControl*(c: Control, r: Rect, d: Drawing, t: Theme)
+359:method layoutChildren*(k: Container, d: Drawing, t: Theme) {.base.} =
+450:proc layoutControl*(c: Control, r: Rect, d: Drawing, t: Theme) =
+454:method preferredSize*(k: Container, d: Drawing, t: Theme): tuple[w, h: float] =
+519:method hitChildren*(k: Container, x, y: float): bool {.base.} = true
+522:method drawOverlay*(k: Container, d: Drawing, t: Theme) {.base.} = discard
+525:method onDescendantFocus*(k: Container, c: Control) {.base.} = discard
+527:proc controlAt*(c: Control, x, y: float): Control =
+538:proc drawTree*(c: Control, d: Drawing, t: Theme) =
+552:proc setFocusInternal*(f: Window, c: Control) =
+578:proc focusNext*(f: Window, direction: int) =
+586:proc openPopup*(f: Window, p: Control, r: Rect) =
+593:proc closePopup*(f: Window) =
+600:proc drawScrollIndicator*(d: Drawing, t: Theme, area: Rect, total, span, pos: float) =
+606:proc scrollFromBar*(area: Rect, total, span, y: float): float =
+613:proc newContainer*(layout = lkVertical, margin = -1.0, spacing = -1.0, columns = 2): Container =
+617:proc newSupercontrol*(layout = lkHorizontal, spacing = -1.0): Container =
+621:proc newWindow*(title: string, width = 800, height = 600,
+636:proc addChild*[T: Control](parent: Container, c: T): T =
+650:proc addChild*[T: Control](f: Window, c: T): T = addChild(f.root, c)
+652:proc addChild*(parentId: ControlId, c: Control): ControlId =
+48:proc loadIcon*(path: string): IconId =
+63:proc newIconView*(icon: IconId, size = 48.0): IconView =
+70:method typeName*(c: IconView): string = "Icon"
+71:method preferredSize*(c: IconView, d: Drawing, t: Theme): tuple[w, h: float] = (48.0, 48.0)
+77:method draw*(c: IconView, d: Drawing, t: Theme) =
+254:proc alert*(icon: IconId, message: string, title = "Alert") =
+266:proc confirm*(icon: IconId, message: string, title = "Confirm"): DialogResult =
+280:proc prompt*(icon: IconId, message: string, defaultValue = "", title = "Input"): string =
+519:proc openFileDialog*(title = "Open", folder = "", filter = "All files|*"): string =
+524:proc saveFileDialog*(title = "Save As", folder = "", defaultName = "", filter = "All files|*",
+548:proc defaultPrintSettings*(): PrintSettings =
+551:proc defaultPageSettings*(): PageSettings =
+555:proc paperSizeMm*(p: PaperSize): tuple[w, h: float] =
+563:proc listPrinters*(): seq[string] =
+589:proc printDialog*(settings: var PrintSettings, title = "Print"): DialogResult =
+643:method preferredSize*(c: PagePreview, d: Drawing, t: Theme): tuple[w, h: float] = (190.0, 230.0)
+645:method draw*(c: PagePreview, d: Drawing, t: Theme) =
+685:proc pageSetupDialog*(settings: var PageSettings, title = "Page Setup"): DialogResult =
+761:proc hexOf*(c: Color): string =
+775:method preferredSize*(c: ColorPalette, d: Drawing, t: Theme): tuple[w, h: float] =
+777:method draw*(c: ColorPalette, d: Drawing, t: Theme) =
+783:method onMouse*(c: ColorPalette, e: MouseEvent) =
+790:method preferredSize*(c: ColorSwatch, d: Drawing, t: Theme): tuple[w, h: float] = (160.0, 70.0)
+791:method draw*(c: ColorSwatch, d: Drawing, t: Theme) =
+861:proc colorDialog*(color: var Color, title = "Colors"): DialogResult =
+924:proc scanFonts*(): seq[tuple[family, style, path: string]] =
+954:method preferredSize*(c: FontPreview, d: Drawing, t: Theme): tuple[w, h: float] = (300.0, 90.0)
+955:method draw*(c: FontPreview, d: Drawing, t: Theme) =
+1051:proc fontDialog*(font: var FontChoice, title = "Font", sample = "The quick brown fox jumps over the lazy dog."): DialogResult =
+1122:proc findInText*(text: string, req: FindRequest, start: int, wrap = true): int =
+1149:proc applyFind*(target: ControlId, req: FindRequest): int =
+1241:proc findDialog*(request: var FindRequest, target = NoControl, replace = false, title = ""): DialogResult =
+522:proc pdfAvailable*(): bool =
+526:proc pdfError*(): string =
+529:proc pdfOpen*(id: ControlId, path: string, password = ""): bool =
+548:proc pdfNew*(id: ControlId, width = 595.0, height = 842.0): bool =
+552:proc pdfSave*(id: ControlId, path = ""): bool =
+558:proc pdfClose*(id: ControlId) =
+566:proc pdfPath*(id: ControlId): string =
+569:proc pdfModified*(id: ControlId): bool =
+572:proc pdfPageCount*(id: ControlId): int =
+575:proc pdfCurrentPage*(id: ControlId): int =
+578:proc pdfGoto*(id: ControlId, page: int) =
+584:proc pdfSetZoom*(id: ControlId, zoom: float) =
+590:proc pdfSetFit*(id: ControlId, mode: int) =
+594:proc pdfSetTool*(id: ControlId, tool: PdfTool) =
+599:proc pdfRotatePage*(id: ControlId, page: int, quarterTurns = 1) =
+602:proc pdfDeletePage*(id: ControlId, page: int) =
+605:proc pdfMovePage*(id: ControlId, page, toPage: int): bool =
+609:proc pdfInsertBlankPage*(id: ControlId, beforePage: int, width = 595.0, height = 842.0) =
+612:proc pdfImportPages*(id: ControlId, sourcePath, pageRange: string, beforePage: int): string =
+623:proc pdfAddText*(id: ControlId, page: int, x, y: float, text: string, size = 14.0, color = Black) =
+627:proc pdfAddNote*(id: ControlId, page: int, x, y: float, text: string) =
+630:proc pdfAddRect*(id: ControlId, page: int, left, bottom, width, height: float,
+635:proc pdfHighlightSelection*(id: ControlId, color = hex"#FFE14D"): bool =
+638:proc pdfSelectedText*(id: ControlId): string =
+641:proc pdfFind*(id: ControlId, text: string, matchCase = false, wholeWord = false, backwards = false): bool =
+644:proc pdfInfo*(id: ControlId): seq[tuple[key, value: string]] =
+647:proc pdfOutline*(id: ControlId): seq[tuple[level: int, title: string, page: int]] =
+839:method isDefaultButton*(b: PdfToolButton): bool = false
+840:method onMouse*(b: PdfToolButton, e: MouseEvent) =
+851:method acceptsText*(pv: PdfPageView): bool = false
+853:method mouseCursor*(pv: PdfPageView, x, y: float): int =
+859:method draw*(pv: PdfPageView, d: Drawing, t: Theme) =
+950:method onMouse*(pv: PdfPageView, e: MouseEvent) =
+1007:method onWheel*(pv: PdfPageView, dx, dy: float): bool =
+1016:method onKey*(pv: PdfPageView, e: KeyEvent): bool =
+1057:method draw*(sb: PdfSidebar, d: Drawing, t: Theme) =
+1099:method onMouse*(sb: PdfSidebar, e: MouseEvent) =
+1114:method onWheel*(sb: PdfSidebar, dx, dy: float): bool =
+1120:method typeName*(v: PdfViewer): string = "PDF Viewer"
+1121:method preferredSize*(v: PdfViewer, d: Drawing, t: Theme): tuple[w, h: float] = (800.0, 600.0)
+1123:proc newPdfViewer*(): PdfViewer =
+10:proc drawPanel*(d: Drawing, t: Theme, c: Control, r: Rect, accent = false) =
+35:proc drawFieldFrame*(d: Drawing, t: Theme, c: Control, r: Rect) =
+50:proc drawThumb*(d: Drawing, t: Theme, cx, cy: float, hover: bool) =
+71:proc newLabel*(text: string, alignment = alLeft, isLink = false): Label =
+75:method typeName*(c: Label): string = "Label"
+77:method preferredSize*(c: Label, d: Drawing, t: Theme): tuple[w, h: float] =
+83:method mouseCursor*(c: Label, x, y: float): int =
+86:method draw*(c: Label, d: Drawing, t: Theme) =
+114:proc newButton*(caption: string, isDefault = false, isCancel = false): Button =
+120:method typeName*(c: Button): string = "Button"
+122:method isDefaultButton*(c: Button): bool = c.isDefault
+124:method isCancelButton*(c: Button): bool = c.isCancel
+126:method preferredSize*(c: Button, d: Drawing, t: Theme): tuple[w, h: float] =
+131:method draw*(c: Button, d: Drawing, t: Theme) =
+139:method onKey*(c: Button, e: KeyEvent): bool =
+154:proc newCheckBox*(caption: string, checked = false, switchStyle = false): CheckBox =
+159:proc newCheckBox*(options: openArray[string], switchStyle = false): CheckBox =
+179:method typeName*(c: CheckBox): string = "Check Box"
+181:method preferredSize*(c: CheckBox, d: Drawing, t: Theme): tuple[w, h: float] =
+188:method draw*(c: CheckBox, d: Drawing, t: Theme) =
+217:method onMouse*(c: CheckBox, e: MouseEvent) =
+225:method onKey*(c: CheckBox, e: KeyEvent): bool =
+235:method valueText*(c: CheckBox): string =
+242:method setValueText*(c: CheckBox, v: string) =
+256:proc newRadioButton*(options: openArray[string], selection = 0, horizontal = false): RadioButton =
+270:method typeName*(c: RadioButton): string = "Radio Button"
+272:method preferredSize*(c: RadioButton, d: Drawing, t: Theme): tuple[w, h: float] =
+281:method draw*(c: RadioButton, d: Drawing, t: Theme) =
+299:method onMouse*(c: RadioButton, e: MouseEvent) =
+308:method onKey*(c: RadioButton, e: KeyEvent): bool =
+319:method valueText*(c: RadioButton): string = $(c.selection + 1)
+321:method setValueText*(c: RadioButton, v: string) =
+341:proc newEdit*(text = "", inputKind = ikText, multiline = false, placeholder = ""): Edit =
+348:proc prevRune*(s: string, i: int): int =
+352:proc nextRune*(s: string, i: int): int =
+434:method typeName*(c: Edit): string = "Input"
+436:method acceptsText*(c: Edit): bool = c.state == csActive
+438:method mouseCursor*(c: Edit, x, y: float): int = SDL_SYSTEM_CURSOR_TEXT
+440:method valueText*(c: Edit): string = c.text
+442:method setValueText*(c: Edit, v: string) =
+448:method preferredSize*(c: Edit, d: Drawing, t: Theme): tuple[w, h: float] =
+451:method draw*(c: Edit, d: Drawing, t: Theme) =
+489:method onText*(c: Edit, s: string) =
+495:method onKey*(c: Edit, e: KeyEvent): bool =
+572:method onMouse*(c: Edit, e: MouseEvent) =
+594:method onWheel*(c: Edit, dx, dy: float): bool =
+607:proc newSpin*(value = 0.0, minValue = 0.0, maxValue = 100.0, step = 1.0): Spin =
+629:method typeName*(c: Spin): string = "Spin"
+631:method preferredSize*(c: Spin, d: Drawing, t: Theme): tuple[w, h: float] = (120.0, t.controlHeight)
+633:method valueNum*(c: Spin): float = c.readValue
+635:method setValueNum*(c: Spin, v: float) = c.setValueText(formatNumber(clamp(v, c.minValue, c.maxValue)))
+637:method draw*(c: Spin, d: Drawing, t: Theme) =
+645:method onMouse*(c: Spin, e: MouseEvent) =
+652:method mouseCursor*(c: Spin, x, y: float): int =
+655:method onKey*(c: Spin, e: KeyEvent): bool =
+664:method onWheel*(c: Spin, dx, dy: float): bool =
+675:proc newProgressBar*(value = 0.0, minValue = 0.0, maxValue = 100.0, showText = true): ProgressBar =
+679:proc fraction*(v, minValue, maxValue: float): float =
+682:method typeName*(c: ProgressBar): string = "Progress Bar"
+684:method valueNum*(c: ProgressBar): float = c.value
+686:method setValueNum*(c: ProgressBar, v: float) = c.value = clamp(v, c.minValue, c.maxValue)
+688:method valueText*(c: ProgressBar): string = formatNumber(c.value)
+690:method setValueText*(c: ProgressBar, v: string) =
+694:method preferredSize*(c: ProgressBar, d: Drawing, t: Theme): tuple[w, h: float] = (200.0, t.lineHeight)
+696:method draw*(c: ProgressBar, d: Drawing, t: Theme) =
+715:proc newSlider*(value = 0.0, minValue = 0.0, maxValue = 100.0, step = 1.0, vertical = false): Slider =
+720:proc trackOf*(r: Rect, vertical: bool): Rect =
+725:proc pointFor*(p: Rect, vertical: bool, f: float): (float, float) =
+728:proc valueFrom*(p: Rect, vertical: bool, minValue, maxValue, step, x, y: float): float =
+740:method typeName*(c: Slider): string = "Slider"
+742:method valueNum*(c: Slider): float = c.value
+744:method setValueNum*(c: Slider, v: float) = c.value = clamp(v, c.minValue, c.maxValue)
+746:method valueText*(c: Slider): string = formatNumber(c.value)
+748:method setValueText*(c: Slider, v: string) =
+752:method preferredSize*(c: Slider, d: Drawing, t: Theme): tuple[w, h: float] =
+755:method draw*(c: Slider, d: Drawing, t: Theme) =
+765:method onMouse*(c: Slider, e: MouseEvent) =
+769:method onKey*(c: Slider, e: KeyEvent): bool =
+781:method onWheel*(c: Slider, dx, dy: float): bool =
+794:proc newRangeSlider*(lower = 20.0, upper = 80.0, minValue = 0.0, maxValue = 100.0, step = 1.0): RangeSlider =
+799:method typeName*(c: RangeSlider): string = "Range Slider"
+801:method valueText*(c: RangeSlider): string = formatNumber(c.lowValue) & ";" & formatNumber(c.highValue)
+803:method setValueText*(c: RangeSlider, v: string) =
+811:method preferredSize*(c: RangeSlider, d: Drawing, t: Theme): tuple[w, h: float] = (200.0, 28.0)
+813:method draw*(c: RangeSlider, d: Drawing, t: Theme) =
+826:method onMouse*(c: RangeSlider, e: MouseEvent) =
+836:method onKey*(c: RangeSlider, e: KeyEvent): bool =
+858:proc newScrollbar*(vertical = true, minValue = 0.0, maxValue = 100.0, pageSize = 10.0): Scrollbar =
+888:method typeName*(c: Scrollbar): string = "Scrollbar"
+890:method valueNum*(c: Scrollbar): float = c.value
+892:method setValueNum*(c: Scrollbar, v: float) = c.value = clamp(v, c.minValue, c.maxValue)
+894:method valueText*(c: Scrollbar): string = formatNumber(c.value)
+896:method setValueText*(c: Scrollbar, v: string) =
+900:method preferredSize*(c: Scrollbar, d: Drawing, t: Theme): tuple[w, h: float] =
+903:method draw*(c: Scrollbar, d: Drawing, t: Theme) =
+916:method onMouse*(c: Scrollbar, e: MouseEvent) =
+936:method onWheel*(c: Scrollbar, dx, dy: float): bool =
+948:proc newRating*(value = 0.0, maxValue = 5): Rating =
+962:method typeName*(c: Rating): string = "Rating"
+964:method valueNum*(c: Rating): float = c.value
+966:method setValueNum*(c: Rating, v: float) = c.value = clamp(v, 0.0, float(c.maxValue))
+968:method valueText*(c: Rating): string = formatNumber(c.value)
+970:method setValueText*(c: Rating, v: string) =
+974:method preferredSize*(c: Rating, d: Drawing, t: Theme): tuple[w, h: float] =
+977:method draw*(c: Rating, d: Drawing, t: Theme) =
+987:method onMouse*(c: Rating, e: MouseEvent) =
+998:method onKey*(c: Rating, e: KeyEvent): bool =
+1017:proc newShape*(shapeKind = skRoundRect, thickness = 1.0): Shape =
+1021:method typeName*(c: Shape): string = "Shape"
+1023:method preferredSize*(c: Shape, d: Drawing, t: Theme): tuple[w, h: float] =
+1029:method draw*(c: Shape, d: Drawing, t: Theme) =
+1064:proc newImage*(path = "", mode = imFit): Image =
+1068:method typeName*(c: Image): string = "Image"
+1070:method valueText*(c: Image): string = c.path
+1072:method setValueText*(c: Image, v: string) = c.path = v
+1074:method preferredSize*(c: Image, d: Drawing, t: Theme): tuple[w, h: float] =
+1077:method draw*(c: Image, d: Drawing, t: Theme) =
+1139:proc newBarCode*(text = "", showText = true): BarCode =
+1143:method typeName*(c: BarCode): string = "Bar Code"
+1145:method valueText*(c: BarCode): string = c.text
+1147:method setValueText*(c: BarCode, v: string) = c.text = v.toUpperAscii
+1149:method preferredSize*(c: BarCode, d: Drawing, t: Theme): tuple[w, h: float] =
+1152:method draw*(c: BarCode, d: Drawing, t: Theme) =
+1180:proc newCell*(layout = lkVertical, title = "", columns = 2): Cell =
+1184:method typeName*(c: Cell): string = "Cell"
+1186:method contentArea*(c: Cell, t: Theme): Rect =
+1192:method preferredSize*(c: Cell, d: Drawing, t: Theme): tuple[w, h: float] =
+1196:method draw*(c: Cell, d: Drawing, t: Theme) =
+1212:proc newTab*(): Tab =
+1217:proc addPage*(o: Tab, title: string, layout = lkVertical, columns = 2): Container =
+1239:method typeName*(o: Tab): string = "Tab"
+1241:method contentArea*(o: Tab, t: Theme): Rect =
+1245:method childShown*(o: Tab, i: int): bool = i == o.activePage
+1247:method preferredSize*(o: Tab, d: Drawing, t: Theme): tuple[w, h: float] =
+1250:method valueText*(o: Tab): string = $(o.activePage + 1)
+1252:method setValueText*(o: Tab, v: string) =
+1256:method draw*(o: Tab, d: Drawing, t: Theme) =
+1299:method onMouse*(o: Tab, e: MouseEvent) =
+1310:method onKey*(o: Tab, e: KeyEvent): bool =
+1330:proc newSplitter*(vertical = true, position = 0.5): Splitter =
+1340:method typeName*(s: Splitter): string = "Splitter"
+1342:method valueNum*(s: Splitter): float = s.position
+1344:method setValueNum*(s: Splitter, v: float) = s.position = clamp(v, 0.0, 1.0)
+1346:method valueText*(s: Splitter): string = formatNumber(s.position)
+1348:method setValueText*(s: Splitter, v: string) =
+1352:method layoutChildren*(s: Splitter, d: Drawing, t: Theme) =
+1364:method mouseCursor*(s: Splitter, x, y: float): int =
+1369:method draw*(s: Splitter, d: Drawing, t: Theme) =
+1377:method onMouse*(s: Splitter, e: MouseEvent) =
+1396:proc newToolbar*(): Toolbar =
+1400:proc addTool*(b: Toolbar, caption: string, tooltip = ""): Button =
+1406:method typeName*(b: Toolbar): string = "Toolbar"
+1408:method draw*(b: Toolbar, d: Drawing, t: Theme) =
+118:proc loadPdfium*(): bool =
