@@ -1,2 +1,6 @@
 .DS_Store
 apps/wdnim/wdnim
+apps/wdlua/wdlua
+apps/wdlua/wdluart
+examples/grid_demo
+examples/pdf_demo

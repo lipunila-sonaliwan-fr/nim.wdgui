@@ -933,7 +933,7 @@ alert(logo, "Welcome!")
 
 The same icons are available as a control: `newIconView(iconQuestion, size = 48)`.
 
-### 13.3 alert, confirm, prompt
+### 13.3 alert, confirm, prompt, promptOk
 
 ```nim
 alert(iconStop, "You have not entered the date.")              # OK only
@@ -943,6 +943,12 @@ if confirm(iconQuestion, "Do you want to delete this record?") == drOk:
 
 let name = prompt(iconQuestion, "File name?", "report.txt")
 # the typed text on OK, "report.txt" (the proposed value) on Cancel
+
+var name = "report.txt"
+if promptOk(iconQuestion, "File name?", name):
+  echo name
+
+# returns true on OK (and `value` receives the typed text); returns false on Concel / close (`value` unchanged).
 ```
 
 All three accept an optional `title`. Long messages wrap automatically, and `\n` forces a line break. Buttons follow the platform order: *OK* then *Cancel* on Windows, *Cancel* then *OK* on macOS and GNOME.

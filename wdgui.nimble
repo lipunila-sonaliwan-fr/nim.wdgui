@@ -34,3 +34,11 @@ task pdf, "Build and run the PDF viewer / editor demo":
 task wdnotes, "Hierarchical, linked, and formatted Markdown notes":
 # exec "nim c -r --threads:on --mm:atomicArc --app:gui -d:sdlttf -d:sdlimage -d:release -o:apps/wdnotes/wdnotes apps/wdnotes/wdnotes.nim"
   exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf -d:release -o:apps/wdnotes/wdnotes apps/wdnotes/wdnotes.nim"
+
+task wdlua, "wdLua [S]tudio":
+# exec "nim c -r --threads:on --mm:atomicArc --stackTrace:on --app:gui -d:ssl -d:sdlttf -d:sdlimage -d:release -o:apps/wdlua/wdlua apps/wdlua/wdlua.nim"
+  exec "nim c -r --threads:on --mm:atomicArc --stackTrace:on -d:ssl -d:sdlttf -d:release -o:apps/wdlua/wdlua apps/wdlua/wdlua.nim"
+
+task wdluart, "wdLua [RT]":
+# exec "nim c -r --threads:on --mm:atomicArc --stackTrace:on --app:gui -d:ssl -d:sdlttf -d:sdlimage -d:release -o:apps/wdlua/wdluart apps/wdlua/wdluart.nim"
+  exec "nim c -r --threads:on --mm:atomicArc --stackTrace:on -d:ssl -d:sdlttf -d:release -o:apps/wdlua/wdluart apps/wdlua/wdluart.nim apps/wdlua/examples/bonjour/main.lua"
