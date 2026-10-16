@@ -2,5 +2,7 @@
 apps/wdnim/wdnim
 apps/wdlua/wdlua
 apps/wdlua/wdluart
+
+examples/demo
 examples/grid_demo
 examples/pdf_demo
