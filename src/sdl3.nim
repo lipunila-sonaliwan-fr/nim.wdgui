@@ -92,7 +92,7 @@ const
   SDL_INIT_VIDEO* = 0x20'u32
   SDL_WINDOW_RESIZABLE* = 0x20'u64
   SDL_BLENDMODE_BLEND* = 0x1'u32
-  SDL_PIXELFORMAT_ARGB8888* = 0x16362004'u32                      # B,G,R,A bytes in memory (little-endian)
+  SDL_PIXELFORMAT_ARGB8888* = 0x16362004'u32                      # B,G,R,A bytes in memory (little-endian).
   SDL_TEXTUREACCESS_STATIC* = 0.cint
   SDL_MOUSEWHEEL_FLIPPED* = 1'u32
 
@@ -153,9 +153,9 @@ const
   SDL_SYSTEM_CURSOR_POINTER* = 11
 
 when defined(macosx):
-  const KMOD_CMD* = KMOD_GUI          # shortcut modifier (Cmd on macOS).
+  const KMOD_CMD* = KMOD_GUI     # shortcut modifier (Cmd on macOS).
 else:
-  const KMOD_CMD* = KMOD_CTRL         # shortcut modifier (Ctrl elsewhere).
+  const KMOD_CMD* = KMOD_CTRL    # shortcut modifier (Ctrl elsewhere).
 
 {.push dynlib: sdlLibName(""), cdecl, importc.}
 proc SDL_Init*(flags: uint32): bool
@@ -220,6 +220,7 @@ when defined(sdlttf):
   proc TTF_GetFontHeight*(f: TTF_Font): cint
   proc TTF_GetStringSize*(f: TTF_Font, text: cstring, length: csize_t, w, h: ptr cint): bool
   proc TTF_RenderText_Blended*(f: TTF_Font, text: cstring, length: csize_t, fg: SDL_Color): SDL_Surface
+  proc TTF_SetFontStyle*(f: TTF_Font, style: uint32)   # TTF_STYLE_BOLD = 1, TTF_STYLE_ITALIC = 2.
   {.pop.}
 
 when defined(sdlimage):
