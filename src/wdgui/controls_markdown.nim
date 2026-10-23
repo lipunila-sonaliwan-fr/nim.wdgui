@@ -72,15 +72,21 @@ const
   CodePad = 3.0
   StrongFonts = {mfBold, mfBoldItalic, mfH1, mfH2, mfH3}
   EscapableChars = {'!' .. '/', ':' .. '@', '[' .. '`', '{' .. '~'}
-  MonoFonts = ["/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc",
-               "/System/Library/Fonts/Monaco.ttf",
-               "C:/Windows/Fonts/CascadiaMono.ttf", "C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/cour.ttf",
-               "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
-               "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
-               "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
-               "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-               "/usr/share/fonts/noto/NotoSansMono-Regular.ttf",
-               "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf"]
+
+proc monoFonts(): seq[string] =
+  var env = getEnv("WDGUI_PATH")
+  env = if env.len > 0 and dirExists(env): env else: "."
+  env &= "/ttf/DejaVuSansMono.ttf"
+  return @[ env,
+            "/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc",
+            "/System/Library/Fonts/Monaco.ttf",
+            "C:/Windows/Fonts/CascadiaMono.ttf", "C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/cour.ttf",
+            "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+            "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+            "/usr/share/fonts/noto/NotoSansMono-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf"]
 
 proc newMarkdownView*(markdown = ""): MarkdownView =
   result = MarkdownView(source: markdown, padding: 10)
@@ -294,7 +300,7 @@ proc ensureFonts(v: MarkdownView, d: Drawing, t: Theme) =
       if fileExists(p):
         body = p
         break
-    for p in MonoFonts:
+    for p in monoFonts():
       if fileExists(p):
         mono = p
         break
