@@ -252,6 +252,10 @@ type
     options*: seq[string]
     selection*: int    # 0-based, -1 = none.
     horizontal*: bool
+    disabled*: seq[bool]   # options grayed individually (index 0-based; shorter = active).
+
+proc optionEnabled*(c: RadioButton, i: int): bool =
+  i >= 0 and i < c.options.len and (i >= c.disabled.len or not c.disabled[i])
 
 proc newRadioButton*(options: openArray[string], selection = 0, horizontal = false): RadioButton =
   result = RadioButton(options: @options, selection: selection, horizontal: horizontal)
@@ -286,13 +290,15 @@ method draw*(c: RadioButton, d: Drawing, t: Theme) =
     let ro = c.radioRect(d, t, i)
     let cx = ro.x + 3 + s / 2
     let cy = ro.y + ro.h / 2
+    let off = grayed or not c.optionEnabled(i)
     if i == c.selection:
-      d.fillCircle(cx, cy, s / 2, if grayed: t.textDisabled else: acc)
+      d.fillCircle(cx, cy, s / 2, if off: t.textDisabled else: acc)
       d.fillCircle(cx, cy, s * 0.22, t.textOnAccent)
     else:
-      d.fillCircle(cx, cy, s / 2, if t.look == lfWindows: t.textSecondary else: t.border)
-      d.fillCircle(cx, cy, s / 2 - 1, t.fieldBg)
-    d.textIn(rect(ro.x + s + 11, ro.y, max(0.0, ro.w - s - 11), ro.h), o, textColor(c, t))
+      d.fillCircle(cx, cy, s / 2, if off: t.textDisabled elif t.look == lfWindows: t.textSecondary else: t.border)
+      d.fillCircle(cx, cy, s / 2 - 1, if off: t.windowBg else: t.fieldBg)
+    d.textIn(rect(ro.x + s + 11, ro.y, max(0.0, ro.w - s - 11), ro.h), o,
+             if off: t.textDisabled else: textColor(c, t))
     if c.focus and i == max(0, c.selection):
       d.drawFocus(t, rect(cx - s/2, cy - s/2, s, s), s / 2)
 
@@ -300,6 +306,7 @@ method onMouse*(c: RadioButton, e: MouseEvent) =
   if e.action != maRelease or e.button != mbLeft: return
   for i in 0 ..< c.options.len:
     if c.radioRect(c.win.drawing, c.win.theme, i).containsPoint(e.x, e.y):
+      if not c.optionEnabled(i): return
       if i != c.selection:
         c.selection = i
         emit(c, evChange, index = i + 1, text = c.options[i])
@@ -308,10 +315,14 @@ method onMouse*(c: RadioButton, e: MouseEvent) =
 method onKey*(c: RadioButton, e: KeyEvent): bool =
   var n = c.selection
   case e.key
-  of SDLK_UP, SDLK_LEFT: n = max(0, n - 1)
-  of SDLK_DOWN, SDLK_RIGHT: n = min(c.options.high, n + 1)
+  of SDLK_UP, SDLK_LEFT:
+    n = n - 1
+    while n >= 0 and not c.optionEnabled(n): dec n
+  of SDLK_DOWN, SDLK_RIGHT:
+    n = n + 1
+    while n <= c.options.high and not c.optionEnabled(n): inc n
   else: return false
-  if n != c.selection:
+  if n >= 0 and n <= c.options.high and n != c.selection:
     c.selection = n
     emit(c, evChange, index = n + 1, text = c.options[n])
   true
@@ -337,6 +348,8 @@ type
     scrollX*, scrollY*: float
     rightMargin*: float
     followCursor: bool
+    barDrag: bool           # multiligne : ascenseur saisi.
+    barOffset: float
 
 proc newEdit*(text = "", inputKind = ikText, multiline = false, placeholder = ""): Edit =
   result = Edit(text: text, inputKind: inputKind, multiline: multiline, placeholder: placeholder)
@@ -374,6 +387,22 @@ proc textArea(c: Edit): Rect =
   let r = c.rect
   if c.multiline: rect(r.x + 8, r.y + 5, max(0.0, r.w - 16 - c.rightMargin), max(0.0, r.h - 10))
   else: rect(r.x + 8, r.y + 2, max(0.0, r.w - 16 - c.rightMargin), max(0.0, r.h - 4))
+
+proc contentH(c: Edit, t: Theme): float = float(c.lineRanges.len) * t.lineHeight
+
+proc maxScrollY(c: Edit, t: Theme): float = max(0.0, c.contentH(t) - c.textArea.h)
+
+proc barTrack(c: Edit): Rect =
+  let r = c.rect
+  rect(r.x + r.w - 12, r.y + 3, 9, max(0.0, r.h - 6))
+
+proc barThumb(c: Edit, t: Theme): Rect =
+  let tr = c.barTrack
+  let lp = clamp(tr.h * c.textArea.h / max(1.0, c.contentH(t)), min(20.0, tr.h), tr.h)
+  let ms = c.maxScrollY(t)
+  rect(tr.x, tr.y + (tr.h - lp) * (if ms > 0: clamp(c.scrollY / ms, 0.0, 1.0) else: 0.0), tr.w, lp)
+
+proc hasBar(c: Edit, t: Theme): bool = c.multiline and c.maxScrollY(t) > 0.5
 
 proc lineY(c: Edit, t: Theme, z: Rect, i: int): float =
   if c.multiline: z.y + float(i) * t.lineHeight - c.scrollY
@@ -485,6 +514,11 @@ method draw*(c: Edit, d: Drawing, t: Theme) =
     let y = c.lineY(t, z, li)
     d.fillRect(rect(z.x - c.scrollX + cx, y + (lh - th) / 2 - 1, 1.5, th + 2), c.style.text.get(t.text))
   d.popClip()
+  if c.hasBar(t):
+    let tr = c.barTrack
+    let tb = c.barThumb(t)
+    d.fillRoundRect(tr, 4.5, withAlpha(t.textSecondary, if c.barDrag: 34 else: 18))
+    d.fillRoundRect(tb, 4.5, withAlpha(t.textSecondary, if c.barDrag: 210 else: 130))
 
 method onText*(c: Edit, s: string) =
   if c.state != csActive: return
@@ -572,6 +606,20 @@ method onKey*(c: Edit, e: KeyEvent): bool =
 method onMouse*(c: Edit, e: MouseEvent) =
   if c.win == nil or c.win.drawing == nil or e.button notin {mbLeft, mbNone}: return
   let t = c.win.theme
+  if c.barDrag or (e.action == maPress and c.hasBar(t) and c.barTrack.shrink(-2, 0).containsPoint(e.x, e.y)):
+    let tr = c.barTrack
+    let tb = c.barThumb(t)
+    case e.action
+    of maPress:
+      c.barDrag = true
+      c.barOffset = if e.y >= tb.y and e.y <= tb.y + tb.h: e.y - tb.y else: tb.h / 2
+    of maRelease:
+      c.barDrag = false
+      return
+    else: discard
+    let frac = clamp((e.y - c.barOffset - tr.y) / max(1.0, tr.h - tb.h), 0.0, 1.0)
+    c.scrollY = frac * c.maxScrollY(t)
+    return
   case e.action
   of maPress:
     let p = c.posFromXY(c.win.drawing, t, e.x, e.y)
@@ -628,7 +676,7 @@ proc arrowArea(c: Spin): Rect = rect(c.rect.x + c.rect.w - 23, c.rect.y + 2, 21,
 
 method typeName*(c: Spin): string = "Spin"
 
-method preferredSize*(c: Spin, d: Drawing, t: Theme): tuple[w, h: float] = (120.0, t.controlHeight)
+method preferredSize*(c: Spin, d: Drawing, t: Theme): tuple[w, h: float] = (100.0, t.controlHeight)
 
 method valueNum*(c: Spin): float = c.readValue
 
@@ -1222,7 +1270,8 @@ proc addPage*(o: Tab, title: string, layout = lkVertical, columns = 2): Containe
 
 proc tabHeaderHeight(t: Theme): float = t.controlHeight + 8
 
-proc tabRects(o: Tab, d: Drawing, t: Theme): seq[Rect] =
+proc tabRects*(o: Tab, d: Drawing, t: Theme): seq[Rect] =
+  # Rectangles des en-têtes (aussi utilisé par le concepteur de formulaires de wdlexis+).
   var ws: seq[float]
   var total = 0.0
   for e in o.children:
@@ -1274,14 +1323,14 @@ method draw*(o: Tab, d: Drawing, t: Theme) =
   for i, rr in rs:
     let isActiveTab = i == o.activePage
     var col = if isActiveTab: t.text else: t.textSecondary
-    if o.isGrayed: col = t.textDisabled
+    if o.isGrayed or o.children[i].state == csGrayed: col = t.textDisabled
     case t.look
     of lfMacOS:
       if isActiveTab:
         d.fillRoundRect(rect(rr.x + 2, rr.y + 3, rr.w - 4, rr.h - 4), t.radius - 1, t.shadow)
         d.fillRoundRect(rect(rr.x + 2, rr.y + 2, rr.w - 4, rr.h - 4), t.radius - 1,
                            if t.dark: t.surface else: White)
-      elif i == o.hoverIndex:
+      elif i == o.hoverIndex and o.children[i].state != csGrayed:
         d.fillRoundRect(rr.shrink(2), t.radius - 1, withAlpha(t.surfaceHover, 160))
     else:
       if isActiveTab:
@@ -1291,7 +1340,7 @@ method draw*(o: Tab, d: Drawing, t: Theme) =
           d.fillRoundRect(rect(rr.x + rr.w / 2 - 8, rr.y + rr.h - 4, 16, 3), 1.5, acc)
         else:
           d.fillRect(rect(rr.x + 6, rr.y + rr.h - 3, rr.w - 12, 3), acc)
-      elif i == o.hoverIndex:
+      elif i == o.hoverIndex and o.children[i].state != csGrayed:
         d.fillRoundRect(rr.shrink(2), t.radius, t.surfaceHover)
     d.textIn(rr, o.children[i].caption, col, alCenter)
     if o.focus and isActiveTab: d.drawFocus(t, rr.shrink(2), t.radius)
@@ -1301,7 +1350,8 @@ method onMouse*(o: Tab, e: MouseEvent) =
   for i, rr in rs:
     if rr.containsPoint(e.x, e.y):
       if e.action == maMove: o.hoverIndex = i
-      elif e.action == maPress and e.button == mbLeft and i != o.activePage:
+      elif e.action == maPress and e.button == mbLeft and i != o.activePage and
+           o.children[i].state != csGrayed:     # page grisée : onglet inaccessible.
         o.activePage = i
         emit(o, evChange, index = i + 1, text = o.children[i].caption)
       return
@@ -1313,7 +1363,7 @@ method onKey*(o: Tab, e: KeyEvent): bool =
   of SDLK_LEFT: n = max(0, n - 1)
   of SDLK_RIGHT: n = min(o.children.high, n + 1)
   else: return false
-  if n != o.activePage and n >= 0:
+  if n != o.activePage and n >= 0 and o.children[n].state != csGrayed:
     o.activePage = n
     emit(o, evChange, index = n + 1, text = o.children[n].caption)
   true
@@ -1408,3 +1458,10 @@ method typeName*(b: Toolbar): string = "Toolbar"
 method draw*(b: Toolbar, d: Drawing, t: Theme) =
   d.fillRect(b.rect, b.style.background.get(t.header))
   d.fillRect(rect(b.rect.x, b.rect.y + b.rect.h - 1, b.rect.w, 1), t.border)
+
+
+method dispose*(c: Image) =
+  ## Texture de l'image (rechargée si l'image est de nouveau affichée).
+  if c.tex != nil: SDL_DestroyTexture(c.tex)
+  c.tex = nil
+  c.texPath = ""

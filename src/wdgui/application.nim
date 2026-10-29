@@ -7,7 +7,7 @@
 # * The dispatcher thread POPS events; each pop starts a dedicated thread
 #   (default mode) that calls the window handler for the target, then for each
 #   parent up to the window, unless `ev.stopPropagation()` was called.
-import std/[atomics, typedthreads]
+import std/[atomics, typedthreads, locks]
 import ../sdl3, core
 
 type
@@ -23,6 +23,39 @@ var
   uiThread {.used.}: Thread[void]
   cursors: array[12, SDL_Cursor]
   currentCursor = -1
+  iconLock: Lock
+  iconPx: seq[uint8]                 # icône des fenêtres (RGBA), protégée par iconLock
+  iconW, iconH: int
+  iconVersion: Atomic[int]           # 0 : aucune icône
+
+initLock(iconLock)
+
+proc setApplicationIcon*(w, h: int, rgba: openArray[uint8]) =
+  # Icon for all windows (title bar, taskbar, macOS Dock),
+  # including those already open. RGBA: w * h * 4 bytes, row by row.
+  if w <= 0 or h <= 0 or rgba.len < w * h * 4: return
+  {.cast(gcsafe).}:
+    withLock iconLock:
+      iconPx = @rgba
+      iconW = w
+      iconH = h
+    iconVersion.atomicInc()
+
+proc applyIcon(f: Window) =
+  # Interface thread only (called by realize and drawWindow).
+  let v = iconVersion.load()
+  if v == f.appliedIcon or f.sdlWin == nil: return
+  f.appliedIcon = v
+  {.cast(gcsafe).}:
+    withLock iconLock:
+      if iconPx.len >= iconW * iconH * 4 and iconW > 0:
+        # SDL_PIXELFORMAT_ABGR8888 = octets R, G, B, A in memory ;
+        # SDL_SetWindowIcon image copy.
+        let s = SDL_CreateSurfaceFrom(cint(iconW), cint(iconH), 0x16762004'u32,
+                                      addr iconPx[0], cint(iconW * 4))
+        if s != nil:
+          discard SDL_SetWindowIcon(f.sdlWin, s)
+          SDL_DestroySurface(s)
 
 # dispatcher
 
@@ -158,6 +191,8 @@ proc realize(f: Window) =
   discard SDL_SetRenderDrawBlendMode(f.sdlRen, SDL_BLENDMODE_BLEND)
   f.sdlId = SDL_GetWindowID(f.sdlWin)
   let owner = f.modalFor
+  if f.placed and owner == nil:
+    discard SDL_SetWindowPosition(f.sdlWin, f.placeX.cint, f.placeY.cint)
   if owner != nil and owner.sdlWin != nil:
     # child window of its owner, centered horizontally, in the upper third
     discard SDL_SetWindowParent(f.sdlWin, owner.sdlWin)
@@ -172,12 +207,17 @@ proc realize(f: Window) =
     activeWindow = f
   f.drawing = newDrawing(f.sdlRen)
   f.appliedTitle = f.title
+  f.applyIcon()
   f.opened = true
   f.dirty = true
   emit(f, evWindowOpen)
 
 proc destroyWindow(f: Window) =
   if f.sdlWin != nil:
+    # ressources des contrôles (polices, textures, documents) avant le moteur de rendu.
+    f.flushDisposals()
+    disposeTree(f.root)
+    if f.popup != nil: f.popup.dispose()
     if f.sdlTextInputActive: discard SDL_StopTextInput(f.sdlWin)
     if f.drawing != nil: f.drawing.dispose()
     SDL_DestroyRenderer(f.sdlRen)
@@ -203,6 +243,7 @@ proc drawTooltip(f: Window, d: Drawing, t: Theme) =
   d.textIn(r, c.tooltip, t.text, alCenter)
 
 proc drawWindow(f: Window) =
+  f.flushDisposals()
   f.animating = false
   let d = f.drawing
   let t = f.theme
@@ -210,6 +251,7 @@ proc drawWindow(f: Window) =
   if f.appliedTitle != f.title:
     discard SDL_SetWindowTitle(f.sdlWin, f.title.cstring)
     f.appliedTitle = f.title
+  f.applyIcon()
   var w, h: cint
   discard SDL_GetWindowSize(f.sdlWin, addr w, addr h)
   f.width = int(w)

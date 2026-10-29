@@ -92,7 +92,7 @@ const
   SDL_INIT_VIDEO* = 0x20'u32
   SDL_WINDOW_RESIZABLE* = 0x20'u64
   SDL_BLENDMODE_BLEND* = 0x1'u32
-  SDL_PIXELFORMAT_ARGB8888* = 0x16362004'u32                      # B,G,R,A bytes in memory (little-endian).
+  SDL_PIXELFORMAT_ARGB8888* = 0x16362004'u32                      # B,G,R,A bytes in memory (little-endian)
   SDL_TEXTUREACCESS_STATIC* = 0.cint
   SDL_MOUSEWHEEL_FLIPPED* = 1'u32
 
@@ -153,9 +153,9 @@ const
   SDL_SYSTEM_CURSOR_POINTER* = 11
 
 when defined(macosx):
-  const KMOD_CMD* = KMOD_GUI     # shortcut modifier (Cmd on macOS).
+  const KMOD_CMD* = KMOD_GUI          # shortcut modifier (Cmd on macOS).
 else:
-  const KMOD_CMD* = KMOD_CTRL    # shortcut modifier (Ctrl elsewhere).
+  const KMOD_CMD* = KMOD_CTRL         # shortcut modifier (Ctrl elsewhere).
 
 {.push dynlib: sdlLibName(""), cdecl, importc.}
 proc SDL_Init*(flags: uint32): bool
@@ -197,6 +197,8 @@ proc SDL_SetTextureColorMod*(t: SDL_Texture, cr, cg, cb: uint8): bool
 proc SDL_SetTextureAlphaMod*(t: SDL_Texture, a: uint8): bool
 proc SDL_LoadBMP*(file: cstring): SDL_Surface
 proc SDL_DestroySurface*(s: SDL_Surface)
+proc SDL_CreateSurfaceFrom*(w, h: cint, format: uint32, pixels: pointer, pitch: cint): SDL_Surface
+proc SDL_SetWindowIcon*(w: SDL_Window, icon: SDL_Surface): bool
 proc SDL_WaitEventTimeout*(e: ptr SDL_Event, ms: int32): bool
 proc SDL_PollEvent*(e: ptr SDL_Event): bool
 proc SDL_PushEvent*(e: ptr SDL_Event): bool

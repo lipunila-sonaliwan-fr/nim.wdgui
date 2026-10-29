@@ -93,15 +93,6 @@ const
   tabBarH = 34.0
   levelW = 10.0
   minimapW = 118.0
-  monoFonts = ["/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc",
-               "/System/Library/Fonts/Monaco.ttf",
-               "C:/Windows/Fonts/CascadiaMono.ttf", "C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/cour.ttf",
-               "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
-               "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
-               "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
-               "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-               "/usr/share/fonts/noto/NotoSansMono-Regular.ttf",
-               "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf"]
 
 when defined(macosx):
   const wordMod = KMOD_ALT
@@ -113,6 +104,21 @@ const
   SDLK_Y = 0x79'u32
   SDLK_Z = 0x7A'u32
   SDLK_SLASH = 0x2F'u32
+
+proc monoFonts(): seq[string] =
+  var env = getEnv("WDGUI_PATH")
+  env = if env.len > 0 and dirExists(env): env else: "."
+  env &= "/ttf/DejaVuSansMono.ttf"
+  return @[ env,
+            "/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc",
+            "/System/Library/Fonts/Monaco.ttf",
+            "C:/Windows/Fonts/CascadiaMono.ttf", "C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/cour.ttf",
+            "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+            "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+            "/usr/share/fonts/noto/NotoSansMono-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf"]
 
 # colors
 
@@ -604,7 +610,7 @@ proc ensureFont(ed: CodeEditor, d: Drawing) =
   if ed.fontReady: return
   ed.fontReady = true
   when defined(sdlttf):
-    for p in monoFonts:
+    for p in monoFonts():
       if fileExists(p):
         ed.font = TTF_OpenFont(p.cstring, ed.fontSize.cfloat)
         if ed.font != nil: break

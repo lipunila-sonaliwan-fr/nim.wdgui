@@ -2,7 +2,15 @@
 apps/wdnim/wdnim
 apps/wdlua/wdlua
 apps/wdlua/wdluart
-
+apps/wdnotes/wdnotes
 examples/demo
 examples/grid_demo
 examples/pdf_demo
+
+apps/wdreka/wdreka
+apps/wdnim/wdnim
+examples/custom_demo
+examples/dialogs_demo
+examples/panel_demo
+grid_export.csv
+grid_export.json

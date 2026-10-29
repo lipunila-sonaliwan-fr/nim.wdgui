@@ -25,7 +25,7 @@ type
     gcButton = "Button", gcCombo = "Combo", gcCheck = "Check"
 
   FooterKind* = enum
-    fkNone = "None", fkSum = "Sum", fkAverage = "Average", fkMin = "Min", fkMax = "Max", fkCount = "Count"
+    fkNone = "∅", fkSum = "∑", fkAverage = "x̅", fkMin = "↓", fkMax = "↑", fkCount = "#"
 
   EditMode* = enum
     emInherit = "Inherit", emReadOnly = "ReadOnly", emEditable = "Editable"
@@ -95,6 +95,9 @@ type
     dragX: float
     dragMoved: bool
     shiftAnchor: int
+    barDrag: int                 # ascenseur saisi : 0 aucun, 1 vertical, 2 horizontal.
+    barOffset: float
+    hoverBar: int
     visual: seq[VisualRow]
     textures: Table[string, tuple[tex: SDL_Texture, w, h: float]]
 
@@ -368,9 +371,28 @@ proc headerRect(g: Grid, t: Theme): Rect =
   let z = g.inner
   rect(z.x, z.y, z.w, headerH(t))
 
+const gridBar = 11.0      # épaisseur des ascenseurs.
+
+proc totalWidth(g: Grid): float
+
+proc bars(g: Grid, t: Theme): tuple[v, h: bool] =
+  # Ascenseurs nécessaires (vertical : plus de lignes que de place ; horizontal :
+  # colonnes plus larges que la grille). Après buildVisual.
+  let z = g.inner
+  var availH = z.h - headerH(t) - g.footerH(t)
+  let rowsH = float(g.visual.len) * t.lineHeight
+  var v = rowsH > availH + 0.5
+  let h = g.totalWidth > z.w - (if v: gridBar else: 0.0) + 0.5
+  if h:
+    availH -= gridBar
+    v = rowsH > availH + 0.5
+  (v, h)
+
 proc bodyRect(g: Grid, t: Theme): Rect =
   let z = g.inner
-  rect(z.x, z.y + headerH(t), z.w, max(0.0, z.h - headerH(t) - g.footerH(t)))
+  let b = g.bars(t)
+  rect(z.x, z.y + headerH(t), max(0.0, z.w - (if b.v: gridBar else: 0.0)),
+       max(0.0, z.h - headerH(t) - g.footerH(t) - (if b.h: gridBar else: 0.0)))
 
 proc visibleRowCount(g: Grid, t: Theme): int =
   max(1, int(g.bodyRect(t).h / t.lineHeight))
@@ -380,6 +402,57 @@ proc colWidth(g: Grid, c: int): float =
 
 proc totalWidth(g: Grid): float =
   for c in g.shownColumns: result += g.colWidth(c)
+
+proc vTrack(g: Grid, t: Theme): Rect =
+  let z = g.inner
+  let b = g.bodyRect(t)
+  rect(z.x + z.w - gridBar, b.y, gridBar, b.h)
+
+proc hTrack(g: Grid, t: Theme): Rect =
+  let z = g.inner
+  let b = g.bodyRect(t)
+  rect(z.x, z.y + z.h - gridBar, b.w, gridBar)
+
+proc maxScrollX(g: Grid, t: Theme): float =
+  max(0.0, g.totalWidth + 4 - g.bodyRect(t).w)
+
+proc vThumb(g: Grid, t: Theme): Rect =
+  let tr = g.vTrack(t).shrink(2, 2)
+  let total = float(max(1, g.visual.len))
+  let span = float(g.visibleRowCount(t))
+  let lp = clamp(tr.h * span / total, min(20.0, tr.h), tr.h)
+  let ms = max(1.0, total - span)
+  rect(tr.x, tr.y + (tr.h - lp) * clamp(float(g.scroll) / ms, 0.0, 1.0), tr.w, lp)
+
+proc hThumb(g: Grid, t: Theme): Rect =
+  let tr = g.hTrack(t).shrink(2, 2)
+  let total = max(1.0, g.totalWidth + 4)
+  let lp = clamp(tr.w * g.bodyRect(t).w / total, min(20.0, tr.w), tr.w)
+  let ms = g.maxScrollX(t)
+  rect(tr.x + (tr.w - lp) * (if ms > 0: clamp(g.scrollX / ms, 0.0, 1.0) else: 0.0), tr.y, lp, tr.h)
+
+proc scrollToThumb(g: Grid, t: Theme, pos: float) =
+  if g.barDrag == 1:
+    let tr = g.vTrack(t).shrink(2, 2)
+    let th = g.vThumb(t)
+    let frac = clamp((pos - tr.y) / max(1.0, tr.h - th.h), 0.0, 1.0)
+    g.scroll = int(round(frac * float(max(0, g.visual.len - g.visibleRowCount(t)))))
+  elif g.barDrag == 2:
+    let tr = g.hTrack(t).shrink(2, 2)
+    let th = g.hThumb(t)
+    let frac = clamp((pos - tr.x) / max(1.0, tr.w - th.w), 0.0, 1.0)
+    g.scrollX = frac * g.maxScrollX(t)
+
+proc drawBars(g: Grid, d: Drawing, t: Theme) =
+  let b = g.bars(t)
+  for k in 1 .. 2:
+    if (k == 1 and not b.v) or (k == 2 and not b.h): continue
+    let tr = if k == 1: g.vTrack(t) else: g.hTrack(t)
+    let th = if k == 1: g.vThumb(t) else: g.hThumb(t)
+    let hot = g.barDrag == k or g.hoverBar == k
+    d.fillRect(tr, withAlpha(t.textSecondary, if hot: 34 else: 18))
+    d.fillRoundRect(th, min(th.w, th.h) / 2,
+                    withAlpha(t.textSecondary, if g.barDrag == k: 210 elif hot: 170 else: 120))
 
 proc colLeft(g: Grid, c: int): float =
   result = g.rect.x + 2 - g.scrollX
@@ -638,7 +711,7 @@ method draw*(g: Grid, d: Drawing, t: Theme) =
   d.popClip()
   # footer.
   if fh > 0:
-    let fr = rect(z.x, z.y + z.h - fh, z.w, fh)
+    let fr = rect(z.x, b.y + b.h, b.w, fh)
     d.fillRect(fr, t.header)
     d.fillRect(rect(fr.x, fr.y, fr.w, 1), t.border)
     for c in cols:
@@ -648,8 +721,7 @@ method draw*(g: Grid, d: Drawing, t: Theme) =
       d.textIn(rect(g.colLeft(c), fr.y, g.colWidth(c), fh),
                $col.footer & ": " & formatAggregate(col, col.footer, v), t.text, alRight, 8)
   d.popClip()
-  drawScrollIndicator(d, t, rect(g.rect.x + g.rect.w - 10, b.y, 8, b.h),
-                      float(g.visual.len), float(n), float(g.scroll))
+  g.drawBars(d, t)
 
 # interaction.
 method hitInfo*(g: Grid, x, y: float): tuple[index, column: int] =
@@ -686,9 +758,23 @@ method onMouse*(g: Grid, e: MouseEvent) =
     g.editor.pressed = g.pressed
     g.editor.onMouse(e)
     return
+  let bs = g.bars(t)
   case e.action
   of maPress:
     g.comboPending = false
+    if e.button == mbLeft and ((bs.v and g.vTrack(t).containsPoint(e.x, e.y)) or
+                               (bs.h and g.hTrack(t).containsPoint(e.x, e.y))):
+      g.commitEdit()
+      g.barDrag = (if bs.v and g.vTrack(t).containsPoint(e.x, e.y): 1 else: 2)
+      let th = if g.barDrag == 1: g.vThumb(t) else: g.hThumb(t)
+      let p = if g.barDrag == 1: e.y else: e.x
+      let a = if g.barDrag == 1: th.y else: th.x
+      let l = if g.barDrag == 1: th.h else: th.w
+      if p >= a and p <= a + l: g.barOffset = p - a
+      else:
+        g.barOffset = l / 2
+        g.scrollToThumb(t, p - g.barOffset)
+      return
     if g.headerRect(t).containsPoint(e.x, e.y):
       g.commitEdit()
       let edge = g.columnEdgeAtX(e.x)
@@ -725,11 +811,18 @@ method onMouse*(g: Grid, e: MouseEvent) =
     elif col.kind in {gcText, gcNumber, gcDate} and e.clicks >= 2:
       g.startEdit(r, c)
   of maMove:
-    if g.resizeCol >= 0:
+    g.hoverBar = (if bs.v and g.vTrack(t).containsPoint(e.x, e.y): 1
+                  elif bs.h and g.hTrack(t).containsPoint(e.x, e.y): 2 else: 0)
+    if g.barDrag != 0:
+      g.scrollToThumb(t, (if g.barDrag == 1: e.y else: e.x) - g.barOffset)
+    elif g.resizeCol >= 0:
       g.columns[g.resizeCol].fixedWidth = max(24.0, g.resizeW0 + e.x - g.resizeX0)
     elif g.dragCol >= 0 and abs(e.x - g.dragX) > 6:
       g.dragMoved = true
   of maRelease:
+    if g.barDrag != 0:
+      g.barDrag = 0
+      return
     if g.dragCol >= 0:
       if g.dragMoved:
         let target = g.columnAtX(e.x)
@@ -833,7 +926,7 @@ method onWheel*(g: Grid, dx, dy: float): bool =
   let t = g.win.theme
   g.buildVisual()
   if dx != 0:
-    g.scrollX = clamp(g.scrollX - dx * 30, 0.0, max(0.0, g.totalWidth - g.rect.w + 14))
+    g.scrollX = clamp(g.scrollX - dx * 30, 0.0, g.maxScrollX(t))
   g.scroll = clamp(g.scroll - int(dy * 3), 0, max(0, g.visual.len - g.visibleRowCount(t)))
   true
 
@@ -1347,3 +1440,8 @@ proc gridLoadJson*(id: ControlId, path: string, append = false): int =
   var s: string
   if not readText(path, s): return -1
   gridFromJson(id, s, append)
+
+
+method dispose*(g: Grid) =
+  for v in g.textures.values: SDL_DestroyTexture(v.tex)
+  g.textures.clear()

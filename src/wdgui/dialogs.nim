@@ -142,7 +142,7 @@ proc canBlock(): bool =
     result = sdlReady and getThreadId() != uiThreadId
   if not result:
     stderr.writeLine("wdgui: dialogs must be called from an event handler (or any thread but the " &
-                     "UI thread) once runApplication() is running; returning the default value")
+                     "UI thread) once runApplication() is running; returning the default value.")
 
 proc ownerWindow(): Window =
   result = activeWindow
@@ -250,7 +250,7 @@ proc messageSize(t: Theme, message: string, extra = 0.0): tuple[w, h: int] =
   let h = 2 * t.margin + max(52.0, float(lines) * t.lineHeight) + extra + t.controlHeight + 2 * t.spacing + 8
   (440, int(h))
 
-# alert / confirm / promptOk / prompt 
+# alert / confirm / promptOk / prompt / promptSecret
 
 proc alert*(icon: IconId, message: string, title = "Alert") =
   # Shows a short message with an OK button.
@@ -299,6 +299,7 @@ proc promptOk*(icon: IconId, message: string, value: var string, title = "Input"
 
 proc prompt*(icon: IconId, message: string, defaultValue = "", title = "Input"): string =
   # Shows a message and an Edit; returns the typed text on OK, `defaultValue` on Cancel.
+  # (see promptOk to know whether the user cancelled)
   if not canBlock(): return defaultValue
   let st = DialogState()
   let t = dialogTheme()
@@ -312,6 +313,32 @@ proc prompt*(icon: IconId, message: string, defaultValue = "", title = "Input"):
     edit.anchor = 0                    # whole text selected
     initialFocus(win, edit)
   if runModal(st) == drOk: edit.id.value else: defaultValue
+
+proc promptSecret*(icon: IconId, message: string, value: var string, remember: var bool,
+                   rememberLabel = "", title = "Input"): bool =
+  # Like promptOk, with a masked Edit (password) and, when `rememberLabel` is given,
+  # a check box under it (initialised with / returned in `remember`).
+  if not canBlock(): return false
+  let st = DialogState()
+  let t = dialogTheme()
+  let extra = t.controlHeight + t.spacing + (if rememberLabel.len > 0: t.controlHeight + t.spacing else: 0.0)
+  let sz = messageSize(t, message, extra)
+  var edit: Edit
+  var cb: CheckBox
+  guarded:
+    let win = newDialogWindow(st, title, sz.w, sz.h)
+    discard st.addButtonRow(win, [("Annuler", drCancel), ("OK", drOk)])
+    let col = messageBody(win, icon, message)
+    edit = col.addChild(newEdit(value, inputKind = ikPassword))
+    edit.anchor = 0
+    if rememberLabel.len > 0:
+      cb = col.addChild(newCheckBox(rememberLabel, remember))
+    initialFocus(win, edit)
+  result = runModal(st) == drOk
+  if result:
+    value = edit.id.value
+    if not cb.isNil:
+      guarded: remember = cb.checked.len > 0 and cb.checked[0]
 
 # file dialogs
 
@@ -517,7 +544,7 @@ proc fileDialog(title, folder, defaultName, filter: string, saving, confirmOverw
     # folder bar (top)
     let top = win.addChild(newSupercontrol(lkHorizontal))
     top.dock = dkTop
-    st.upButton = top.addChild(newButton("Up")).id
+    st.upButton = top.addChild(newButton("⬅ Up")).id
     let pe = top.addChild(newEdit(st.folder))
     pe.weight = 1
     st.pathEdit = pe.id
@@ -906,7 +933,7 @@ proc colorDialog*(color: var Color, title = "Colors"): DialogResult =
     for i in 0 .. 3:
       let row = right.addChild(newSupercontrol(lkHorizontal))
       let l = row.addChild(newLabel(names[i]))
-      l.fixedWidth = 80
+      l.fixedWidth = 50
       let sl = row.addChild(newSlider(float(channel(color, i)), 0, 255))
       sl.weight = 1
       let sp = row.addChild(newSpin(float(channel(color, i)), 0, 255))
@@ -915,7 +942,7 @@ proc colorDialog*(color: var Color, title = "Colors"): DialogResult =
       st.spins[i] = sp.id
     let hr = right.addChild(newSupercontrol(lkHorizontal))
     let hl = hr.addChild(newLabel("Hex"))
-    hl.fixedWidth = 80
+    hl.fixedWidth = 60
     let he = hr.addChild(newEdit(hexOf(color)))
     he.fixedWidth = 140
     st.hexEdit = he.id
@@ -1310,3 +1337,17 @@ proc findDialog*(request: var FindRequest, target = NoControl, replace = false, 
   result = runModal(st)
   if result == drOk: request = st.request
   else: result = drCancel
+
+
+method dispose*(c: IconView) =
+  if c.tex != nil: SDL_DestroyTexture(c.tex)
+  c.tex = nil
+  c.loaded = false
+
+method dispose*(c: FontPreview) =
+  when defined(sdlttf):
+    if c.tex != nil: SDL_DestroyTexture(c.tex)
+    c.tex = nil
+    if c.font != nil: TTF_CloseFont(c.font)
+    c.font = nil
+    c.key = ""

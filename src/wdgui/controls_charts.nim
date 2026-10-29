@@ -478,9 +478,12 @@ type
     caption*: string
     start*, duration*: float     # in units (days, hours...).
     progress*: float             # 0..1.
+    color*: Color                # alpha 0: the theme accent.
+    detail*: string              # shown at the right end of the bar.
   Gantt* = ref object of Control
     tasks*: seq[GanttTask]
     labelWidth*: float
+    clockAxis*: bool             # units are hours: the axis reads HH:MM.
     selection*: int
     scroll*: int
 
@@ -496,6 +499,7 @@ proc bounds(g: Gantt): (float, float) =
   for tc in g.tasks:
     a = min(a, tc.start)
     b = max(b, tc.start + tc.duration)
+  if g.clockAxis: return (a, max(b, a + 1.0 / 60))
   (floor(a), max(ceil(b), floor(a) + 1))
 
 method typeName*(g: Gantt): string = "Gantt Chart"
@@ -514,13 +518,22 @@ method draw*(g: Gantt, d: Drawing, t: Theme) =
   let u = zg.w / (b - a)
   d.fillRect(rect(r.x + 1, r.y + 1, r.w - 2, he), t.header)
   d.fillRect(rect(zg.x, r.y + 1, 1, r.h - 2), t.border)
-  let unitStep = max(1.0, ceil(40 / max(1e-6, u)))
+  var unitStep = max(1.0, ceil(40 / max(1e-6, u)))
   var v = a
+  if g.clockAxis:
+    # hours: nice steps from one minute to a day.
+    unitStep = 24.0
+    for st in [1.0/60, 5.0/60, 10.0/60, 15.0/60, 0.5, 1.0, 2.0, 3.0, 6.0, 12.0, 24.0]:
+      if st * u >= 52: (unitStep = st; break)
+    v = floor(a / unitStep) * unitStep
   d.pushClip(zg)
   while v <= b:
     let x = zg.x + (v - a) * u
     d.fillRect(rect(x, zg.y + he, 1, zg.h - he), withAlpha(t.border, 120))
-    d.text(x + 3, zg.y + (he - d.textHeight) / 2, formatNumber(v), t.textSecondary)
+    let lbl = if g.clockAxis:
+                (let mins = int(round(v * 60)) mod 1440; align($(mins div 60), 2, '0') & ":" & align($(mins mod 60), 2, '0'))
+              else: formatNumber(v)
+    if x >= zg.x: d.text(x + 3, zg.y + (he - d.textHeight) / 2, lbl, t.textSecondary)
     v += unitStep
   d.popClip()
   let nv = max(1, int(zl.h / lh))
@@ -533,9 +546,14 @@ method draw*(g: Gantt, d: Drawing, t: Theme) =
     let colL = if i == g.selection: t.textSelection else: textColor(g, t)
     d.textIn(rect(zl.x, y, zl.w, lh), tc.caption, colL, alLeft, 8)
     let br = rect(zg.x + (tc.start - a) * u, y + 5, max(4.0, tc.duration * u), lh - 10)
-    d.fillRoundRect(br, 4, mix(acc, t.fieldBg, 0.55))
+    let ca = if tc.color.a == 0: acc else: tc.color
+    d.pushClip(zg)
+    d.fillRoundRect(br, 4, mix(ca, t.fieldBg, 0.55))
     if tc.progress > 0:
-      d.fillRoundRect(rect(br.x, br.y, br.w * clamp(tc.progress, 0.0, 1.0), br.h), 4, acc)
+      d.fillRoundRect(rect(br.x, br.y, br.w * clamp(tc.progress, 0.0, 1.0), br.h), 4, ca)
+    if tc.detail.len > 0:
+      d.text(br.x + br.w + 6, y + (lh - d.textHeight) / 2, tc.detail, t.textSecondary)
+    d.popClip()
   d.popClip()
   if g.focus: d.drawFocus(t, r, t.fieldRadius)
 

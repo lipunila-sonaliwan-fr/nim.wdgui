@@ -106,6 +106,7 @@ type
   Window* = ref object of Control
     title*: string
     appliedTitle*: string
+    appliedIcon*: int     # version de l'icône d'application déjà posée.
     width*, height*: int
     root*: Container
     dispatch*: DispatchProc
@@ -130,6 +131,9 @@ type
     isModal*: bool            # modal window: blocks input to every other window while open
     modalFor*: Window         # owner of a modal window (it is centered on it)
     alwaysThreaded*: bool     # events go straight to a new thread, bypassing the dispatcher queue
+    placed*: bool             # initial position requested (placeX, placeY: screen coordinates)
+    pendingDispose*: seq[Control]   # controls removed by deleteControl (disposed on the UI thread)
+    placeX*, placeY*: int
 
 var
   guiLock*: Lock
@@ -295,6 +299,25 @@ method onText*(c: Control, s: string) {.base.} = discard
 method onWheel*(c: Control, dx, dy: float): bool {.base.} = false  # true = consumed
 
 method onFocus*(c: Control, gained: bool) {.base.} = discard
+
+method dispose*(c: Control) {.base.} = discard
+  # Releases native resources (fonts, textures, documents). Called on the UI thread when
+  # the control leaves its window for good (window destroyed, or deleteControl). The
+  # control must stay usable: resources are reloaded lazily if it is shown again.
+
+proc disposeTree*(c: Control) =
+  if c == nil: return
+  if c of Container:
+    for e in Container(c).children: disposeTree(e)
+  c.dispose()
+
+proc flushDisposals*(f: Window) =
+  # Disposes controls removed since the last frame (unless they were attached again).
+  if f.pendingDispose.len == 0: return
+  let pending = f.pendingDispose
+  f.pendingDispose.setLen(0)
+  for c in pending:
+    if c.parent == nil: disposeTree(c)
 
 method acceptsText*(c: Control): bool {.base.} = false
 

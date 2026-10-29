@@ -21,10 +21,19 @@ proc indexAt(p: PopupList, t: Theme, y: float): int =
 
 proc choose(p: PopupList, i: int) =
   if i < 0 or i >= p.elements.len or p.elements[i] == "-": return
-  let f = p.win
-  let s = p.elements[i]
-  closePopup(f)
-  p.owner.onPopupChoice(i, s)
+  # Sous ARC, l'appelant (f.popup.onMouse / onKey) ne garde pas de référence à la
+  # liste : closePopup libère alors la dernière, et lire p.owner ensuite lisait une
+  # mémoire libérée (« cannot dispatch; dispatcher is nil », ou SIGBUS). La liste
+  # est donc gardée en vie jusqu'à la fin, et ce qui sert après est copié avant.
+  GC_ref(p)
+  try:
+    let f = p.win
+    let owner = p.owner
+    var s = p.elements[i]
+    closePopup(f)
+    if owner != nil: owner.onPopupChoice(i, s)
+  finally:
+    GC_unref(p)
 
 method draw*(p: PopupList, d: Drawing, t: Theme) =
   let r = p.rect

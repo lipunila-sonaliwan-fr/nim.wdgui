@@ -72,15 +72,21 @@ const
   CodePad = 3.0
   StrongFonts = {mfBold, mfBoldItalic, mfH1, mfH2, mfH3}
   EscapableChars = {'!' .. '/', ':' .. '@', '[' .. '`', '{' .. '~'}
-  MonoFonts = ["/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc",
-               "/System/Library/Fonts/Monaco.ttf",
-               "C:/Windows/Fonts/CascadiaMono.ttf", "C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/cour.ttf",
-               "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
-               "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
-               "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
-               "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-               "/usr/share/fonts/noto/NotoSansMono-Regular.ttf",
-               "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf"]
+
+proc monoFonts(): seq[string] =
+  var env = getEnv("WDGUI_PATH")
+  env = if env.len > 0 and dirExists(env): env else: "."
+  env &= "/ttf/DejaVuSansMono.ttf"
+  return @[ env,
+            "/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc",
+            "/System/Library/Fonts/Monaco.ttf",
+            "C:/Windows/Fonts/CascadiaMono.ttf", "C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/cour.ttf",
+            "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+            "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+            "/usr/share/fonts/noto/NotoSansMono-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf"]
 
 proc newMarkdownView*(markdown = ""): MarkdownView =
   result = MarkdownView(source: markdown, padding: 10)
@@ -147,7 +153,7 @@ proc parseBlocks(src: string): seq[MdBlock] =
       while i < lines.len and not lines[i].strip().startsWith(fence):
         b.lines.add lines[i].replace("\t", "    ")
         inc i
-      inc i                      # clôture.
+      inc i                      # closing.
       result.add b
       continue
     if t.len == 0:
@@ -276,6 +282,22 @@ proc parseInline(s: string): seq[Span] =
 # Polices et texte
 #
 
+when defined(sdlttf):
+  # Polices partagées par toutes les vues Markdown (ouvertes une fois, jamais fermées) :
+  # une vue supprimée ne garde plus de fichiers ouverts, et créer des vues en nombre
+  # n'épuise plus les descripteurs de fichiers (256 par défaut sous macOS).
+  var mdFontCache: Table[string, TTF_Font]
+
+  proc sharedFont(path: string, size: float, style: uint32): TTF_Font =
+    let key = path & "|" & $size & "|" & $style
+    {.cast(gcsafe).}:
+      result = mdFontCache.getOrDefault(key)
+      if result == nil:
+        result = TTF_OpenFont(path.cstring, cfloat(size))
+        if result != nil:
+          if style != 0: TTF_SetFontStyle(result, style)
+          mdFontCache[key] = result
+
 proc ensureFonts(v: MarkdownView, d: Drawing, t: Theme) =
   let key = t.name & "|" & $t.fontSize & "|" & $t.textScale & "|" & t.fonts.join(";")
   if key == v.fontKey: return
@@ -286,15 +308,13 @@ proc ensureFonts(v: MarkdownView, d: Drawing, t: Theme) =
     for f in MdFont:
       for e in v.caches[f].values: SDL_DestroyTexture(e.tex)
       v.caches[f].clear()
-      if v.fonts[f] != nil:
-        TTF_CloseFont(v.fonts[f])
-        v.fonts[f] = nil
+      v.fonts[f] = nil                   # police partagée : non fermée.
     var body, mono = ""
     for p in t.fonts:
       if fileExists(p):
         body = p
         break
-    for p in MonoFonts:
+    for p in monoFonts():
       if fileExists(p):
         mono = p
         break
@@ -310,9 +330,8 @@ proc ensureFonts(v: MarkdownView, d: Drawing, t: Theme) =
           of mfH1: (body, 1.42, 1'u32)
           of mfH2: (body, 1.2, 1'u32)
           of mfH3: (body, 1.06, 1'u32)
-        let fo = TTF_OpenFont(path.cstring, cfloat(t.fontSize * k))
+        let fo = sharedFont(path, t.fontSize * k, style)
         if fo != nil:
-          if style != 0: TTF_SetFontStyle(fo, style)
           v.fonts[f] = fo
           v.heights[f] = float(TTF_GetFontHeight(fo))
   for f in MdFont:
@@ -413,15 +432,15 @@ proc atomsOf(spans: seq[Span], base: MdFont, col, codeFg, codeBg, linkCol: Color
           result.add Atom(text: w, url: sp.url, font: f, color: c, link: sp.link, space: pendingSpace)
           w = ""
         pendingSpace = true
-      else: w.add ch             # sans espace avant : collé au morceau précédent (« **gras**, »).
+      else: w.add ch             # no space before: attached to the preceding element (“**bold**,”).
     if w.len > 0:
       result.add Atom(text: w, url: sp.url, font: f, color: c, link: sp.link, space: pendingSpace)
       pendingSpace = false
 
 proc flowInline(v: MarkdownView, d: Drawing, atoms: seq[Atom], x0, maxW: float,
                 y: var float, gap: float): float =
-  # Place les morceaux de x0 à x0 + maxW à partir de y ; y avance jusqu'au bas de
-  # la dernière ligne. Renvoie la hauteur de la première ligne.
+  # Places the pieces from x0 to x0 + maxW, starting at y; y advances to the bottom of
+  # the last row. Returns the height of the first row.
   var line: seq[tuple[a: Atom, s: string, x, w: float]]
   var cx = 0.0
   var cy = y
@@ -631,7 +650,7 @@ proc scrollToThumb(v: MarkdownView, thumbY: float) =
 proc lineStep(v: MarkdownView): float = max(12.0, v.heights[mfBody] * 1.25)
 
 proc linkAt(v: MarkdownView, x, y: float): string =
-  # URL du lien sous le point (coordonnées fenêtre), "" sinon.
+  # URL of the link under the point (window coordinates), or "" otherwise.
   let z = v.viewport
   if not z.containsPoint(x, y): return ""
   let cx = x - z.x
@@ -640,12 +659,12 @@ proc linkAt(v: MarkdownView, x, y: float): string =
     if op.kind == opText and op.url.len > 0 and
        rect(op.x, op.y, op.w, op.h).containsPoint(cx, cy): return op.url
 
-# API objet (à appeler sous le verrou de wdgui : `guarded` ou `withControl`).
+# Object API (to be called under the `wdgui` lock: `guarded` or `withControl`).
 
 proc markdown*(v: MarkdownView): string = v.source
 
 proc appendMarkdown*(v: MarkdownView, s: string) =
-  # Ajoute du texte à la fin (sur une nouvelle ligne) sans changer le défilement.
+  # Add text at the end (on a new line) without changing the scrolling.
   if v.source.len > 0 and not v.source.endsWith("\n"): v.source.add '\n'
   v.source.add s
   v.layoutKey = ""
@@ -654,7 +673,7 @@ proc scrollPosition*(v: MarkdownView): float = v.scrollY
 
 proc scrollTo*(v: MarkdownView, y: float) =
   v.pendingEnd = false
-  v.scrollY = max(0.0, y)        # borné au prochain dessin.
+  v.scrollY = max(0.0, y)   # limited to the next drawing.
 
 proc scrollToEnd*(v: MarkdownView) =
   v.pendingEnd = true
@@ -681,7 +700,7 @@ method draw*(v: MarkdownView, d: Drawing, t: Theme) =
   if key != v.layoutKey:
     v.layoutKey = key
     v.layout(d, t, z.w)
-    if v.overflows: v.layout(d, t, z.w - BarW - 4)                # place réservée à l'ascenseur.
+    if v.overflows: v.layout(d, t, z.w - BarW - 4)   # space reserved for the elevator.
   if v.pendingEnd:
     v.scrollY = v.maxScroll
     v.pendingEnd = false
@@ -749,3 +768,14 @@ method onKey*(v: MarkdownView, e: KeyEvent): bool =
     if v.source.len > 0: discard SDL_SetClipboardText(v.source.cstring)
   else: return false
   true
+
+
+method dispose*(v: MarkdownView) =
+  ## Textures du texte ; les polices sont partagées entre les vues (non fermées).
+  when defined(sdlttf):
+    for f in MdFont:
+      for e in v.caches[f].values: SDL_DestroyTexture(e.tex)
+      v.caches[f].clear()
+      v.fonts[f] = nil
+  v.fontKey = ""
+  v.layoutKey = ""

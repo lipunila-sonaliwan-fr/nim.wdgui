@@ -1185,3 +1185,12 @@ proc newPdfViewer*(): PdfViewer =
       if not renderStarted:
         renderStarted = true
         createThread(renderThread, renderLoop)
+
+
+method dispose*(v: PdfViewer) =
+  ## Document PDFium et pages rendues.
+  withLock pdfLock:
+    v.jobs.setLen(0)
+    v.closeDoc()
+  for t in v.textures: SDL_DestroyTexture(t.tex)
+  v.textures.setLen(0)
