@@ -2,11 +2,11 @@
 # Minimal FFI bindings for SDL3 (>= 3.2), loaded dynamically: no C headers required.
 # Compile-time options:
 #   -d:sdlttf    use SDL3_ttf for TrueType fonts (otherwise SDL3's built-in bitmap font)
-#   -d:sdlimage  use SDL3_image to load PNG/JPG... (otherwise BMP only)
+#   -d:sdlimage  use SDL3_image for formats other than PNG/JPEG/BMP (GIF, WEBP, TIFF...)
 import std/os
+import wdgpath
 
 proc sdlLibName(sfx: string): string =
-  var env = getEnv("WDGUI_PATH")
   var SdlLib =
     when defined(windows):
       "winOS/SDL3" & sfx & ".dll"
@@ -14,11 +14,9 @@ proc sdlLibName(sfx: string): string =
       "macOS/libSDL3" & sfx & ".dylib"
     else:
       "linOS/libSDL3" & sfx & ".so"
-  if env.len > 0 and dirExists(env):
-    env = env & "/" & SdlLib
-  else:
-    env = SdlLib
-  result = env
+  # dossier de WDGUI_PATH, sinon celui de l'exécutable (double-clic), sinon le dossier courant
+  let base = wdguiBase(SdlLib)
+  result = if base == ".": SdlLib else: base / SdlLib
 
 type
   SDL_Window* = ptr object
@@ -91,6 +89,9 @@ type
 const
   SDL_INIT_VIDEO* = 0x20'u32
   SDL_WINDOW_RESIZABLE* = 0x20'u64
+  SDL_WINDOW_FULLSCREEN* = 0x1'u64
+  SDL_WINDOW_MINIMIZED* = 0x40'u64
+  SDL_WINDOW_MAXIMIZED* = 0x80'u64
   SDL_BLENDMODE_BLEND* = 0x1'u32
   SDL_PIXELFORMAT_ARGB8888* = 0x16362004'u32                      # B,G,R,A bytes in memory (little-endian)
   SDL_TEXTUREACCESS_STATIC* = 0.cint
@@ -167,12 +168,18 @@ proc SDL_CreateWindow*(title: cstring, w, h: cint, flags: uint64): SDL_Window
 proc SDL_DestroyWindow*(w: SDL_Window)
 proc SDL_GetWindowID*(w: SDL_Window): uint32
 proc SDL_GetWindowSize*(w: SDL_Window, pw, ph: ptr cint): bool
+proc SDL_GetWindowSafeArea*(w: SDL_Window, r: ptr SDL_Rect): bool
 proc SDL_SetWindowTitle*(w: SDL_Window, title: cstring): bool
 proc SDL_SetWindowParent*(w, parent: SDL_Window): bool
 proc SDL_SetWindowModal*(w: SDL_Window, modal: bool): bool
 proc SDL_GetWindowPosition*(w: SDL_Window, px, py: ptr cint): bool
 proc SDL_SetWindowPosition*(w: SDL_Window, x, y: cint): bool
 proc SDL_RaiseWindow*(w: SDL_Window): bool
+proc SDL_MaximizeWindow*(w: SDL_Window): bool
+proc SDL_MinimizeWindow*(w: SDL_Window): bool
+proc SDL_RestoreWindow*(w: SDL_Window): bool
+proc SDL_SetWindowFullscreen*(w: SDL_Window, fullscreen: bool): bool
+proc SDL_GetWindowFlags*(w: SDL_Window): uint64
 proc SDL_CreateRenderer*(w: SDL_Window, name: cstring): SDL_Renderer
 proc SDL_DestroyRenderer*(r: SDL_Renderer)
 proc SDL_SetRenderVSync*(r: SDL_Renderer, vsync: cint): bool
@@ -192,6 +199,8 @@ proc SDL_CreateTexture*(r: SDL_Renderer, format: uint32, access: cint, w, h: cin
 proc SDL_UpdateTexture*(t: SDL_Texture, rect: ptr SDL_Rect, pixels: pointer, pitch: cint): bool
 proc SDL_CreateTextureFromSurface*(r: SDL_Renderer, s: SDL_Surface): SDL_Texture
 proc SDL_DestroyTexture*(t: SDL_Texture)
+proc SDL_SetTextureBlendMode*(t: SDL_Texture, mode: uint32): bool
+proc SDL_SetTextureScaleMode*(t: SDL_Texture, mode: cint): bool   # 0 : pixels, 1 : linéaire
 proc SDL_GetTextureSize*(t: SDL_Texture, w, h: ptr cfloat): bool
 proc SDL_SetTextureColorMod*(t: SDL_Texture, cr, cg, cb: uint8): bool
 proc SDL_SetTextureAlphaMod*(t: SDL_Texture, a: uint8): bool
@@ -220,6 +229,7 @@ when defined(sdlttf):
   proc TTF_OpenFont*(file: cstring, ptsize: cfloat): TTF_Font
   proc TTF_CloseFont*(f: TTF_Font)
   proc TTF_GetFontHeight*(f: TTF_Font): cint
+  proc TTF_GetFontAscent*(f: TTF_Font): cint
   proc TTF_GetStringSize*(f: TTF_Font, text: cstring, length: csize_t, w, h: ptr cint): bool
   proc TTF_RenderText_Blended*(f: TTF_Font, text: cstring, length: csize_t, fg: SDL_Color): SDL_Surface
   proc TTF_SetFontStyle*(f: TTF_Font, style: uint32)   # TTF_STYLE_BOLD = 1, TTF_STYLE_ITALIC = 2.

@@ -19,7 +19,7 @@
 # Icons: iconStop, iconExclamation, iconQuestion, iconInformation, iconNone, or the id
 # returned by loadIcon(path) for a custom image.
 import std/[os, strutils, tables, times, algorithm, osproc, typedthreads, unicode, math]
-import ../sdl3, core, controls_basic, controls_lists, api
+import ../sdl3, core, controls_basic, controls_lists, api, imageload
 
 type
   IconId* = distinct int
@@ -119,18 +119,10 @@ method draw*(c: IconView, d: Drawing, t: Theme) =
       {.cast(gcsafe).}:
         if i < customIcons.len: path = customIcons[i]
       if path.len > 0:
-        when defined(sdlimage):
-          let s = IMG_Load(path.cstring)
-        else:
-          let s = SDL_LoadBMP(path.cstring)
-        if s != nil:
-          c.tex = SDL_CreateTextureFromSurface(d.ren, s)
-          SDL_DestroySurface(s)
-          if c.tex != nil:
-            var w, h: cfloat
-            discard SDL_GetTextureSize(c.tex, addr w, addr h)
-            c.texW = float(w)
-            c.texH = float(h)
+        let r = loadTexture(d.ren, path)
+        c.tex = r.tex
+        c.texW = r.w
+        c.texH = r.h
     if c.tex != nil:
       let f = min(r.w / max(1.0, c.texW), r.h / max(1.0, c.texH))
       d.drawTexture(c.tex, rect(cx - c.texW * f / 2, cy - c.texH * f / 2, c.texW * f, c.texH * f))
@@ -221,6 +213,9 @@ proc addButtonRow(st: DialogState, win: Window,
     let btn = row.addChild(newButton(b.caption, isDefault = b.res == drOk, isCancel = b.res == drCancel))
     st.buttons.add((btn.id, b.res))
     result.add btn
+  let last = row.addChild(newLabel(""))
+  last.weight = 0.02
+  result
 
 proc wrapText(s: string, maxChars = 48): seq[string] =
   for para in s.split('\n'):
@@ -242,7 +237,7 @@ proc messageBody(win: Window, icon: IconId, message: string): Container =
     iv.stretch = false
   result = body.addChild(newSupercontrol(lkVertical))
   result.weight = 1
-  let lbl = result.addChild(newLabel(wrapText(message).join("\n")))
+  let lbl = result.addChild(newLabel(wrapText(message, 52).join("\n")))
   lbl.stretch = true
 
 proc messageSize(t: Theme, message: string, extra = 0.0): tuple[w, h: int] =

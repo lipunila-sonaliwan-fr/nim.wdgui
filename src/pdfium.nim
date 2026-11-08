@@ -9,6 +9,7 @@
 #
 # PDFium is not thread-safe: every call must be made while holding `pdfLock`.
 import std/[dynlib, os, locks, unicode]
+import wdgpath
 
 type
   FPDF_DOCUMENT* = pointer
@@ -126,11 +127,8 @@ proc loadPdfium*(): bool =
     const name = "macOS/libpdfium.dylib"
   else:
     const name = "linOS/libpdfium.so"
-  var env = getEnv("WDGUI_PATH")
-  if env.len > 0 and dirExists(env):
-    env = env & "/" & name
-  else:
-    env = name
+  let base = wdguiBase(name)
+  let env = if base == ".": name else: base / name
   lib = loadLib(env)
   if lib == nil:
     pdfiumError = "PDFium library not found (see https://github.com/bblanchon/pdfium-binaries; " &

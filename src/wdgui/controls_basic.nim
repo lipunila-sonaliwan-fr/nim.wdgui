@@ -3,7 +3,7 @@
 # Slider, Range Slider, Scrollbar, Rating, Shape, Image, Bar Code,
 # and containers: Cell, Tab, Splitter, Toolbar.
 import std/[math, strutils, unicode]
-import ../sdl3, core
+import ../sdl3, core, imageload, icons
 
 # shared drawing helpers
 
@@ -110,6 +110,7 @@ type
     isDefault*: bool    # default button (Enter) - accent-colored rendering.
     isCancel*: bool     # cancel button (Escape).
     flat*: bool         # flat rendering (toolbars).
+    icon*: string       # Vector symbol (icons.nim) displayed in place of the label (label shown as a tooltip).
 
 proc newButton*(caption: string, isDefault = false, isCancel = false): Button =
   result = Button(isDefault: isDefault, isCancel: isCancel)
@@ -124,6 +125,9 @@ method isDefaultButton*(c: Button): bool = c.isDefault
 method isCancelButton*(c: Button): bool = c.isCancel
 
 method preferredSize*(c: Button, d: Drawing, t: Theme): tuple[w, h: float] =
+  if c.icon.len > 0:
+    let h = max(22.0, t.controlHeight - 4)
+    return (h + 2, h)
   let w = d.textWidth(c.caption) + 2 * t.margin + 8
   let lw = if c.flat: w else: max(w, 88.0)
   (lw, t.controlHeight)
@@ -133,7 +137,10 @@ method draw*(c: Button, d: Drawing, t: Theme) =
   if not c.flat or c.hovered or c.pressed or c.focus:
     drawPanel(d, t, c, r, c.isDefault)
   let col = if c.isDefault and not c.isGrayed: c.style.text.get(t.textOnAccent) else: textColor(c, t)
-  d.textIn(r, c.caption, col, alCenter, 6)
+  if c.icon.len > 0:
+    let k = min(r.w, r.h) * 0.7
+    d.drawIcon(c.icon, rect(r.x + (r.w - k) / 2, r.y + (r.h - k) / 2, k, k), col)
+  else: d.textIn(r, c.caption, col, alCenter, 6)
   if c.focus: d.drawFocus(t, r, radiusOf(c, t))
 
 method onKey*(c: Button, e: KeyEvent): bool =
@@ -385,7 +392,7 @@ proc lineOf(ls: seq[tuple[a, b: int]], pos: int): int =
 
 proc textArea(c: Edit): Rect =
   let r = c.rect
-  if c.multiline: rect(r.x + 8, r.y + 5, max(0.0, r.w - 16 - c.rightMargin), max(0.0, r.h - 10))
+  if c.multiline: rect(r.x + 6, r.y + 4, max(0.0, r.w - 12 - ScrollBarSize - c.rightMargin), max(0.0, r.h - 8))
   else: rect(r.x + 8, r.y + 2, max(0.0, r.w - 16 - c.rightMargin), max(0.0, r.h - 4))
 
 proc contentH(c: Edit, t: Theme): float = float(c.lineRanges.len) * t.lineHeight
@@ -394,7 +401,7 @@ proc maxScrollY(c: Edit, t: Theme): float = max(0.0, c.contentH(t) - c.textArea.
 
 proc barTrack(c: Edit): Rect =
   let r = c.rect
-  rect(r.x + r.w - 12, r.y + 3, 9, max(0.0, r.h - 6))
+  vBarArea(r.shrink(1, 2))
 
 proc barThumb(c: Edit, t: Theme): Rect =
   let tr = c.barTrack
@@ -514,11 +521,11 @@ method draw*(c: Edit, d: Drawing, t: Theme) =
     let y = c.lineY(t, z, li)
     d.fillRect(rect(z.x - c.scrollX + cx, y + (lh - th) / 2 - 1, 1.5, th + 2), c.style.text.get(t.text))
   d.popClip()
-  if c.hasBar(t):
-    let tr = c.barTrack
-    let tb = c.barThumb(t)
-    d.fillRoundRect(tr, 4.5, withAlpha(t.textSecondary, if c.barDrag: 34 else: 18))
-    d.fillRoundRect(tb, 4.5, withAlpha(t.textSecondary, if c.barDrag: 210 else: 130))
+  if c.multiline:
+    c.drawScrollBar(d, t, c.barTrack, c.contentH(t), c.textArea.h, c.scrollY)
+
+method scrollTrackTo*(c: Edit, vertical: bool, pos: float) =
+  if vertical and c.multiline and c.win != nil: c.scrollY = clamp(pos, 0.0, c.maxScrollY(c.win.theme))
 
 method onText*(c: Edit, s: string) =
   if c.state != csActive: return
@@ -676,7 +683,7 @@ proc arrowArea(c: Spin): Rect = rect(c.rect.x + c.rect.w - 23, c.rect.y + 2, 21,
 
 method typeName*(c: Spin): string = "Spin"
 
-method preferredSize*(c: Spin, d: Drawing, t: Theme): tuple[w, h: float] = (100.0, t.controlHeight)
+method preferredSize*(c: Spin, d: Drawing, t: Theme): tuple[w, h: float] = (120.0, t.controlHeight)
 
 method valueNum*(c: Spin): float = c.readValue
 
@@ -1128,18 +1135,10 @@ method draw*(c: Image, d: Drawing, t: Theme) =
     c.tex = nil
     c.texPath = c.path
     if c.path.len > 0:
-      when defined(sdlimage):
-        let s = IMG_Load(c.path.cstring)
-      else:
-        let s = SDL_LoadBMP(c.path.cstring)
-      if s != nil:
-        c.tex = SDL_CreateTextureFromSurface(d.ren, s)
-        SDL_DestroySurface(s)
-        if c.tex != nil:
-          var w, h: cfloat
-          discard SDL_GetTextureSize(c.tex, addr w, addr h)
-          c.texW = float(w)
-          c.texH = float(h)
+      let r = loadTexture(d.ren, c.path)    # PNG, JPEG, BMP ; autres formats avec -d:sdlimage
+      c.tex = r.tex
+      c.texW = r.w
+      c.texH = r.h
   let r = c.rect
   if c.style.background.isSome: d.fillRect(r, c.style.background.get)
   if c.tex == nil:
@@ -1271,13 +1270,40 @@ proc addPage*(o: Tab, title: string, layout = lkVertical, columns = 2): Containe
 proc tabHeaderHeight(t: Theme): float = t.controlHeight + 8
 
 proc tabRects*(o: Tab, d: Drawing, t: Theme): seq[Rect] =
-  # Rectangles des en-têtes (aussi utilisé par le concepteur de formulaires de wdlexis+).
+  # Header rectangles (also used by the wdlexis+ form designer).
+  # Overflow: when the headers do not fit, the internal margin is reduced first,
+  # followed by capping the width of the longest tabs (with labels truncated using "…").
+  var tws: seq[float]
+  var textTotal = 0.0
+  for e in o.children:
+    let tw = d.textWidth(e.caption)
+    tws.add tw
+    textTotal += tw
+  let n = o.children.len
+  let gap = if t.look == lfMacOS: 0.0 else: 2.0
+  let avail = o.rect.w - 8 - gap * float(max(0, n - 1))
+  var pad = 28.0
+  if n > 0 and textTotal + pad * float(n) > avail:
+    pad = max(12.0, (avail - textTotal) / float(n))
   var ws: seq[float]
   var total = 0.0
-  for e in o.children:
-    let w = d.textWidth(e.caption) + 28
-    ws.add w
-    total += w
+  for tw in tws:
+    ws.add tw + pad
+    total += tw + pad
+  if n > 0 and total > avail and avail > 0:
+    # plafond c tel que somme(min(w, c)) = avail
+    var lo = 0.0
+    var hi = 0.0
+    for w in ws: hi = max(hi, w)
+    for _ in 0 .. 30:
+      let c = (lo + hi) / 2
+      var s = 0.0
+      for w in ws: s += min(w, c)
+      if s > avail: hi = c else: lo = c
+    total = 0.0
+    for i in 0 ..< ws.len:
+      ws[i] = max(24.0, min(ws[i], lo))
+      total += ws[i]
   let h = t.controlHeight
   var x = if t.look == lfMacOS: o.rect.x + max(0.0, (o.rect.w - total) / 2) else: o.rect.x + 4
   let y = o.rect.y + 4
@@ -1342,7 +1368,7 @@ method draw*(o: Tab, d: Drawing, t: Theme) =
           d.fillRect(rect(rr.x + 6, rr.y + rr.h - 3, rr.w - 12, 3), acc)
       elif i == o.hoverIndex and o.children[i].state != csGrayed:
         d.fillRoundRect(rr.shrink(2), t.radius, t.surfaceHover)
-    d.textIn(rr, o.children[i].caption, col, alCenter)
+    d.textIn(rr, o.children[i].caption, col, alCenter, 4)
     if o.focus and isActiveTab: d.drawFocus(t, rr.shrink(2), t.radius)
 
 method onMouse*(o: Tab, e: MouseEvent) =
@@ -1405,18 +1431,29 @@ method layoutChildren*(s: Splitter, d: Drawing, t: Theme) =
   var vis: seq[Control]
   for e in s.children:
     if e.visible: vis.add e
-  if vis.len >= 1:
+  if vis.len == 1:
+    # only one panel visible: it takes up all the space (the position is preserved
+    # for the day when the other panel reappears)
+    layoutControl(vis[0], r, d, t)
+  elif vis.len >= 2:
     layoutControl(vis[0], (if s.vertical: rect(r.x, r.y, b.x - r.x, r.h) else: rect(r.x, r.y, r.w, b.y - r.y)), d, t)
   if vis.len >= 2:
     layoutControl(vis[1], (if s.vertical: rect(b.x + b.w, r.y, r.x + r.w - b.x - b.w, r.h)
                       else: rect(r.x, b.y + b.h, r.w, r.y + r.h - b.y - b.h)), d, t)
 
 method mouseCursor*(s: Splitter, x, y: float): int =
-  if s.bar.containsPoint(x, y) or s.dragging:
+  if s.dragging or (s.bar.containsPoint(x, y) and s.children.len >= 2 and s.children[0].visible and s.children[1].visible):
     (if s.vertical: SDL_SYSTEM_CURSOR_EW_RESIZE else: SDL_SYSTEM_CURSOR_NS_RESIZE)
   else: SDL_SYSTEM_CURSOR_DEFAULT
 
+proc twoPanes(s: Splitter): bool =
+  var n = 0
+  for e in s.children:
+    if e.visible: inc n
+  n >= 2
+
 method draw*(s: Splitter, d: Drawing, t: Theme) =
+  if not s.twoPanes: return
   let b = s.bar
   d.fillRect(b, if s.dragging or s.hovered: t.surfacePressed else: t.windowBg)
   let col = t.textSecondary
@@ -1425,6 +1462,9 @@ method draw*(s: Splitter, d: Drawing, t: Theme) =
     else: d.fillCircle(b.x + b.w / 2 + float(i) * 6, b.y + b.h / 2, 1.5, col)
 
 method onMouse*(s: Splitter, e: MouseEvent) =
+  if not s.twoPanes:
+    s.dragging = false
+    return
   case e.action
   of maPress: s.dragging = s.bar.containsPoint(e.x, e.y)
   of maMove:
@@ -1461,7 +1501,7 @@ method draw*(b: Toolbar, d: Drawing, t: Theme) =
 
 
 method dispose*(c: Image) =
-  ## Texture de l'image (rechargée si l'image est de nouveau affichée).
+  # Image texture (reloaded if the image is displayed again).
   if c.tex != nil: SDL_DestroyTexture(c.tex)
   c.tex = nil
   c.texPath = ""

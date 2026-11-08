@@ -1,4 +1,4 @@
-version       = "1.5.3"
+version       = "1.8.6"
 author        = "wdgui"
 description   = "Nim GUI library on top of SDL3 modelled on WD-style controls and API"
 license       = "MIT"

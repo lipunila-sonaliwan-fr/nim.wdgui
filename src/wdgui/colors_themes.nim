@@ -1,6 +1,7 @@
 # CC BY-NC-SA 4.0 - jean-marc "jihem" quere 2026
 # Colors, themes (Windows 11 / macOS / Linux-GNOME look & feel) and per-control styles.
 import std/[options, os, strutils]
+import ../wdgpath
 export options
 
 type
@@ -71,9 +72,7 @@ proc paletteFor(accent: Color): seq[Color] =
     hex"#00B7C3", hex"#D13438", hex"#498205", hex"#CA5010", hex"#4F6BED"]
 
 proc themeFonts(): seq[string] =
-  var env = getEnv("WDGUI_PATH")
-  env = if env.len > 0 and dirExists(env): env else: "."
-  env &= "/ttf/GoNotoEuropeAmericas.ttf"
+  var env = wdguiBase("ttf/GoNotoEuropeAmericas.ttf") & "/ttf/GoNotoEuropeAmericas.ttf"
   return @[ env,
             "/System/Library/Fonts/SFNS.ttf",
             "/System/Library/Fonts/Helvetica.ttc",

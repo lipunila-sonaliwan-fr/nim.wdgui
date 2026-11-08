@@ -17,7 +17,7 @@
 # inserted / deleted), evValidate (a modified row is left or Enter is pressed), and the
 # generic evClick / evDoubleClick / evRightClick... which also carry index and column.
 import std/[strutils, algorithm, sequtils, json, tables, math]
-import ../sdl3, core, controls_basic, controls_lists
+import ../sdl3, core, controls_basic, controls_lists, imageload
 
 type
   GridColumnKind* = enum
@@ -381,11 +381,10 @@ proc bars(g: Grid, t: Theme): tuple[v, h: bool] =
   let z = g.inner
   var availH = z.h - headerH(t) - g.footerH(t)
   let rowsH = float(g.visual.len) * t.lineHeight
-  var v = rowsH > availH + 0.5
-  let h = g.totalWidth > z.w - (if v: gridBar else: 0.0) + 0.5
-  if h:
-    availH -= gridBar
-    v = rowsH > availH + 0.5
+  discard rowsH > availH + 0.5
+  let v = true      # ascenseur vertical toujours affiché (rail seul si tout est visible)
+  let h = g.totalWidth > z.w - gridBar + 0.5
+  if h: availH -= gridBar
   (v, h)
 
 proc bodyRect(g: Grid, t: Theme): Rect =
@@ -451,6 +450,7 @@ proc drawBars(g: Grid, d: Drawing, t: Theme) =
     let th = if k == 1: g.vThumb(t) else: g.hThumb(t)
     let hot = g.barDrag == k or g.hoverBar == k
     d.fillRect(tr, withAlpha(t.textSecondary, if hot: 34 else: 18))
+    if k == 1 and g.visual.len <= g.visibleRowCount(t): continue
     d.fillRoundRect(th, min(th.w, th.h) / 2,
                     withAlpha(t.textSecondary, if g.barDrag == k: 210 elif hot: 170 else: 120))
 
@@ -594,18 +594,8 @@ proc moveTo(g: Grid, r: int, extend = false) =
 # drawing.
 proc texture(g: Grid, d: Drawing, path: string): tuple[tex: SDL_Texture, w, h: float] =
   if path in g.textures: return g.textures[path]
-  when defined(sdlimage):
-    let s = IMG_Load(path.cstring)
-  else:
-    let s = SDL_LoadBMP(path.cstring)
-  if s != nil:
-    result.tex = SDL_CreateTextureFromSurface(d.ren, s)
-    SDL_DestroySurface(s)
-    if result.tex != nil:
-      var w, h: cfloat
-      discard SDL_GetTextureSize(result.tex, addr w, addr h)
-      result.w = float(w)
-      result.h = float(h)
+  let r = loadTexture(d.ren, path)
+  result = (r.tex, r.w, r.h)
   g.textures[path] = result
 
 proc drawCell(g: Grid, d: Drawing, t: Theme, col: GridColumn, cr: Rect, v: string, fg: Color) =

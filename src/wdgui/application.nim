@@ -212,6 +212,23 @@ proc realize(f: Window) =
   f.dirty = true
   emit(f, evWindowOpen)
 
+proc applyStateRequest(f: Window) =
+  # Maximize, minimize, restore, full screen (along the interface edge).
+  f.stateRequested = false
+  let w = f.sdlWin
+  if w == nil: return
+  let full = (SDL_GetWindowFlags(w) and SDL_WINDOW_FULLSCREEN) != 0
+  if f.stateRequest != wsFullscreen and full: discard SDL_SetWindowFullscreen(w, false)
+  case f.stateRequest
+  of wsNormal: discard SDL_RestoreWindow(w)
+  of wsMaximized: discard SDL_MaximizeWindow(w)
+  of wsMinimized: discard SDL_MinimizeWindow(w)
+  of wsFullscreen: discard SDL_SetWindowFullscreen(w, true)
+  f.dirty = true
+
+proc readState(f: Window) =
+  if f.sdlWin != nil: f.winState = currentWindowState(f)
+
 proc destroyWindow(f: Window) =
   if f.sdlWin != nil:
     # ressources des contrôles (polices, textures, documents) avant le moteur de rendu.
@@ -227,6 +244,40 @@ proc destroyWindow(f: Window) =
   f.drawing = nil
   f.opened = false
   f.closed = true
+
+proc barPress(f: Window, c: Control, x, y: float): bool =
+  # Clicking on a scrollbar drawn by drawScrollBar: moves to the previous/next page along the track;
+  # grabbing the slider allows for rapid scrolling.
+  var o = c
+  while o != nil:
+    for vertical in [true, false]:
+      let tr = if vertical: o.vScroll else: o.hScroll
+      if tr.area.w > 0 and tr.area.containsPoint(x, y) and o.isActive:
+        if not tr.active: return true
+        let th = tr.thumbRect(vertical)
+        let p = if vertical: y else: x
+        let a = if vertical: th.y else: th.x
+        let l = if vertical: th.h else: th.w
+        if p < a: o.scrollTrackTo(vertical, max(0.0, tr.pos - tr.span))
+        elif p > a + l: o.scrollTrackTo(vertical, min(tr.total - tr.span, tr.pos + tr.span))
+        else:
+          f.barDrag = o
+          f.barVertical = vertical
+          f.barGrab = p - a
+        o.markDirty()
+        return true
+    o = o.parent
+  false
+
+proc barMove(f: Window, x, y: float) =
+  let o = f.barDrag
+  let v = f.barVertical
+  let tr = if v: o.vScroll else: o.hScroll
+  let th = tr.thumbRect(v)
+  let room = (if v: tr.area.h - th.h else: tr.area.w - th.w)
+  let p = (if v: y - tr.area.y else: x - tr.area.x) - f.barGrab
+  if room > 0 and tr.total > tr.span:
+    o.scrollTrackTo(v, clamp(p / room, 0.0, 1.0) * (tr.total - tr.span))
 
 proc drawTooltip(f: Window, d: Drawing, t: Theme) =
   let c = f.hoveredControl
@@ -256,7 +307,15 @@ proc drawWindow(f: Window) =
   discard SDL_GetWindowSize(f.sdlWin, addr w, addr h)
   f.width = int(w)
   f.height = int(h)
-  layoutControl(f.root, rect(0, 0, float(w), float(h)), d, t)
+  # safe area: in full-screen or maximized window mode on a MacBook with a notch, the top
+  # of the screen is reserved (SDL_GetWindowSafeArea); otherwise, the entire window is used.
+  var top = 0.0
+  let fl = SDL_GetWindowFlags(f.sdlWin)
+  if (fl and (SDL_WINDOW_FULLSCREEN or SDL_WINDOW_MAXIMIZED)) != 0:
+    var sa: SDL_Rect
+    if SDL_GetWindowSafeArea(f.sdlWin, addr sa) and sa.y > 0 and sa.y < h div 4: top = float(sa.y)
+  f.safeTop = top
+  layoutControl(f.root, rect(0, top, float(w), float(h) - top), d, t)
   d.clearWith(t.windowBg)
   drawTree(f.root, d, t)
   if f.popup != nil or (f.tooltipShown and f.hoveredControl != nil and f.hoveredControl.tooltip.len > 0):
@@ -285,7 +344,13 @@ proc handleEvent(e: var SDL_Event) =
       emit(f, evWindowClose)
       if not f.manualClose: f.closeRequested = true
     of SDL_EVENT_WINDOW_RESIZED:
+      readState(f)
       emit(f, evWindowResize, x = float(we.data1), y = float(we.data2))
+    of SDL_EVENT_WINDOW_MINIMIZED, SDL_EVENT_WINDOW_MAXIMIZED, SDL_EVENT_WINDOW_RESTORED,
+       SDL_EVENT_WINDOW_SHOWN:
+      let before = f.winState
+      readState(f)
+      if f.winState != before: emit(f, evWindowResize, x = float(f.width), y = float(f.height), text = $f.winState)
     of SDL_EVENT_WINDOW_FOCUS_GAINED:
       if blocked(f, true): return
       activeWindow = f
@@ -303,6 +368,10 @@ proc handleEvent(e: var SDL_Event) =
     let y = float(me.y)
     f.mouseX = x
     f.mouseY = y
+    if f.barDrag != nil:
+      barMove(f, x, y)
+      f.dirty = true
+      return
     let inPopup = f.popup != nil and f.popup.rect.containsPoint(x, y)
     let under = if inPopup: nil else: controlAt(f.root, x, y)
     let target = if f.capturedControl != nil: f.capturedControl
@@ -336,6 +405,7 @@ proc handleEvent(e: var SDL_Event) =
       return
     let c = controlAt(f.root, x, y)
     if c == nil or not c.isActive: return
+    if b == mbLeft and barPress(f, c, x, y): return
     var fc = c
     while fc != nil and not fc.focusable: fc = fc.parent
     if b == mbLeft and fc != nil: setFocusInternal(f, fc)
@@ -353,6 +423,9 @@ proc handleEvent(e: var SDL_Event) =
     let y = float(be.y)
     let b = buttonFrom(be.button)
     f.dirty = true
+    if f.barDrag != nil:
+      f.barDrag = nil
+      return
     if f.capturedControl == nil and f.popup != nil:
       if f.popup.rect.containsPoint(x, y):
         f.popup.onMouse(MouseEvent(action: maRelease, x: x, y: y, button: b, clicks: int(be.clicks), mods: mods))
@@ -399,6 +472,7 @@ proc handleEvent(e: var SDL_Event) =
     f.dirty = true
     let target: Control = if f.focusedControl != nil: f.focusedControl else: f
     if typ == SDL_EVENT_KEY_UP:
+      target.onKeyUp(KeyEvent(key: ke.key, mods: ke.modifiers))
       emit(target, evKeyUp, key = ke.key, mods = ke.modifiers)
       return
     let ek = KeyEvent(key: ke.key, mods: ke.modifiers, isRepeat: ke.repeat)
@@ -477,6 +551,7 @@ proc uiLoop() {.thread.} =
         for f in allWindows:
           if f.closeRequested and not f.closed: destroyWindow(f)
           elif not f.closed and f.sdlWin == nil: realize(f)
+          if f.opened and f.stateRequested: applyStateRequest(f)
           if f.opened: inc openCount
         if openCount > 0: hadWindow = true
         elif hadWindow: finished = true

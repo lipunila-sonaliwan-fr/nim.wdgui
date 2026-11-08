@@ -93,6 +93,13 @@ type
     style*: Style
     hovered*, pressed*, focus*: bool
     focusable*: bool
+    vScroll*, hScroll*: ScrollTrack      # scrollbars drawn by drawScrollBar (managed by the window).
+
+  ScrollTrack* = object
+    # Ascenseur d'un contrôle : zone, taille totale, partie visible et position (mêmes unités).
+    area*: Rect
+    total*, span*, pos*: float
+    active*: bool
 
   Container* = ref object of Control
     children*: seq[Control]
@@ -102,6 +109,9 @@ type
     spacing*: float       # < 0: theme value.
     activePage*: int      # stack layout / tabs (0-based).
     framed*: bool
+
+  WindowState* = enum
+    wsNormal = "normal", wsMaximized = "maximized", wsMinimized = "minimized", wsFullscreen = "fullscreen"
 
   Window* = ref object of Control
     title*: string
@@ -123,6 +133,10 @@ type
     mouseMoveEvents*: bool    # emit evMouseMove on every move (costly: disabled by default).
     sdlTextInputActive*: bool
     mouseX*, mouseY*: float
+    barDrag*: Control         # control to which the scroll bar is attached (slider movement).
+    barVertical*: bool
+    barGrab*: float           # offset between the mouse and the start of the input cursor.
+    safeTop*: float           # marge haute réservée (encoche des MacBook en plein écran / agrandi).
     hoverSince*: uint64
     tooltipShown*: bool
     caretVisible*: bool
@@ -134,6 +148,9 @@ type
     placed*: bool             # initial position requested (placeX, placeY: screen coordinates)
     pendingDispose*: seq[Control]   # controls removed by deleteControl (disposed on the UI thread)
     placeX*, placeY*: int
+    stateRequest*: WindowState      # requested by setWindowState (applied by the UI loop)
+    stateRequested*: bool
+    winState*: WindowState          # current state (tracking SDL events)
 
 var
   guiLock*: Lock
@@ -165,6 +182,15 @@ proc stopPropagation*(ev: var Event) = ev.stopped = true
   # Stops propagation to the parents.
 
 proc propagationStopped*(ev: Event): bool = ev.stopped
+
+proc currentWindowState*(f: Window): WindowState =
+  # État réel de la fenêtre d'après SDL (normale si elle n'est pas encore ouverte).
+  if f.sdlWin == nil: return f.winState
+  let fl = SDL_GetWindowFlags(f.sdlWin)
+  if (fl and SDL_WINDOW_FULLSCREEN) != 0: wsFullscreen
+  elif (fl and SDL_WINDOW_MINIMIZED) != 0: wsMinimized
+  elif (fl and SDL_WINDOW_MAXIMIZED) != 0: wsMaximized
+  else: wsNormal
 
 proc wakeUI*() =
   # Wakes the UI loop (thread-safe) so that it redraws.
@@ -293,6 +319,7 @@ method preferredSize*(c: Control, d: Drawing, t: Theme): tuple[w, h: float] {.ba
 method onMouse*(c: Control, e: MouseEvent) {.base.} = discard
 
 method onKey*(c: Control, e: KeyEvent): bool {.base.} = false      # true = key consumed
+method onKeyUp*(c: Control, e: KeyEvent) {.base.} = discard        # key released (active control)
 
 method onText*(c: Control, s: string) {.base.} = discard
 
@@ -317,7 +344,8 @@ proc flushDisposals*(f: Window) =
   let pending = f.pendingDispose
   f.pendingDispose.setLen(0)
   for c in pending:
-    if c.parent == nil: disposeTree(c)
+    # removed (no parent), or arrived from another window (c.win = f): caches to be released
+    if c.parent == nil or c.win == f: disposeTree(c)
 
 method acceptsText*(c: Control): bool {.base.} = false
 
@@ -626,6 +654,46 @@ proc drawScrollIndicator*(d: Drawing, t: Theme, area: Rect, total, span, pos: fl
   let y = area.y + (area.h - lp) * clamp(pos / (total - span), 0.0, 1.0)
   d.fillRoundRect(rect(area.x + area.w - 6, y, 4, lp), 2, withAlpha(t.textSecondary, 140))
 
+const ScrollBarSize* = 10.0     # épaisseur des ascenseurs.
+
+method scrollTrackTo*(c: Control, vertical: bool, pos: float) {.base.} =
+  # Appelé par la fenêtre quand l'utilisateur agit sur un ascenseur (molette exclue) :
+  # le contrôle doit adopter la nouvelle position `pos` (unités de drawScrollBar).
+  discard
+
+proc thumbRect*(tr: ScrollTrack, vertical: bool): Rect =
+  let a = tr.area
+  let room = if vertical: a.h else: a.w
+  let lp = if tr.total <= tr.span or tr.total <= 0: room else: max(22.0, room * tr.span / tr.total)
+  let k = if tr.total > tr.span: clamp(tr.pos / (tr.total - tr.span), 0.0, 1.0) else: 0.0
+  if vertical: rect(a.x, a.y + (room - lp) * k, a.w, lp)
+  else: rect(a.x + (room - lp) * k, a.y, lp, a.h)
+
+proc drawScrollBar*(c: Control, d: Drawing, t: Theme, area: Rect, total, span, pos: float, vertical = true) =
+  # Interactive scrollbar: the vertical bar is always displayed (showing only the track when the entire content is visible),
+  # while the horizontal bar appears only if the content overflows. Mouse wheel: scrolling; clicking on the track:
+  # moves one page in the indicated direction; dragging the slider: rapid scrolling.
+  let need = total > span + 0.001 and span > 0
+  var tr = ScrollTrack(area: area, total: total, span: span, pos: pos, active: need)
+  if vertical: c.vScroll = tr else: c.hScroll = tr
+  if area.w <= 0 or area.h <= 0: return
+  if not vertical and not need: return
+  d.fillRoundRect(area, min(area.w, area.h) / 2, withAlpha(t.textSecondary, 28))
+  if not need: return
+  let th = tr.thumbRect(vertical)
+  let inset = if vertical: rect(th.x + 2, th.y + 1, th.w - 4, th.h - 2) else: rect(th.x + 1, th.y + 2, th.w - 2, th.h - 4)
+  let w = c.win
+  let hot = w != nil and (w.barDrag == c or th.containsPoint(w.mouseX, w.mouseY))
+  d.fillRoundRect(inset, min(inset.w, inset.h) / 2, withAlpha(t.textSecondary, if hot: 210 else: 140))
+
+proc vBarArea*(r: Rect): Rect =
+  # Standard zone for the vertical scrollbar along the right edge of a rectangle.
+  rect(r.x + r.w - ScrollBarSize - 1, r.y + 1, ScrollBarSize, r.h - 2)
+
+proc hBarArea*(r: Rect, vbar = true): Rect =
+  # Standard zone for the horizontal scrollbar at the bottom of a rectangle.
+  rect(r.x + 1, r.y + r.h - ScrollBarSize - 1, r.w - 2 - (if vbar: ScrollBarSize + 1 else: 0.0), ScrollBarSize)
+
 proc scrollFromBar*(area: Rect, total, span, y: float): float =
   if total <= span: return 0
   let lp = max(18.0, area.h * span / total)
@@ -659,13 +727,30 @@ proc newWindow*(title: string, width = 800, height = 600,
 proc addChild*[T: Control](parent: Container, c: T): T =
   # Adds a control (or container) to a container; returns the control (its id: `.id`).
   guarded:
+    let oldWin = c.win
     if c.parent != nil:
       let cc: Control = c
       let i = c.parent.children.find(cc)
       if i >= 0: c.parent.children.delete(i)
+      markDirty(c.parent)
     c.parent = parent
     parent.children.add c
     attach(c, parent.win)
+    if oldWin != nil and parent.win != nil and oldWin != parent.win:
+      # Moved from one window to another: the cached textures belong to the
+      # rendering engine of the previous window; they are released (and subsequently
+      # recreated) before the next render in the new window.
+      parent.win.pendingDispose.add c
+      oldWin.dirty = true
+      proc within(x: Control): bool =
+        var p = x
+        while p != nil:
+          if p == c: return true
+          p = p.parent
+        false
+      if within(oldWin.focusedControl): oldWin.focusedControl = nil
+      if within(oldWin.hoveredControl): oldWin.hoveredControl = nil
+      if within(oldWin.capturedControl): oldWin.capturedControl = nil
     markDirty(parent)
   wakeUI()
   c

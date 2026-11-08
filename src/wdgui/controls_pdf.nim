@@ -18,7 +18,7 @@
 # the thread-safe `pdf...` procedures (by ControlId), which emit evChange (text = operation)
 # and evSelection (index = current page, 1-based).
 import std/[os, strutils, math, locks, typedthreads]
-import ../[sdl3, pdfium], core, controls_basic, dialogs
+import ../[sdl3, pdfium], core, controls_basic, dialogs, icons
 
 type
   PdfTool* = enum
@@ -834,7 +834,14 @@ proc newToolButton(v: PdfViewer, caption, cmd, tip: string): PdfToolButton =
   initControl(result, caption)
   result.flat = true
   result.stretch = false
-  result.tooltip = tip
+  # symbole vectoriel pour les commandes courantes ; le libellé passe dans l'infobulle.
+  const Icons = [("first", "first"),
+                 ("prev", "previous"), ("next", "next"), ("last", "last"), ("find", "find"),
+                 ("select", "select"), ("rotate", "rotate"),
+                 ("delete", "delete"), ("up", "up"), ("down", "down"), ("print", "print")]
+  for (c, ic) in Icons:
+    if c == cmd: result.icon = ic
+  result.tooltip = (if result.icon.len > 0: caption & " - " & tip else: tip)
 
 method isDefaultButton*(b: PdfToolButton): bool = false
 method onMouse*(b: PdfToolButton, e: MouseEvent) =
@@ -940,12 +947,15 @@ method draw*(pv: PdfPageView, d: Drawing, t: Theme) =
     v.current = best
     emit(v, evSelection, index = best + 1)
   v.pageButton.caption = $(v.current + 1) & " / " & $n
-  drawScrollIndicator(d, t, rect(r.x + r.w - 10, r.y + 2, 8, r.h - 4), pv.totalH, r.h, pv.scrollY)
+  pv.drawScrollBar(d, t, vBarArea(r), pv.totalH, r.h, pv.scrollY)
   var line = ""
   if v.message.len > 0: line = v.message
-  elif v.path.len > 0: line = extractFilename(v.path) & (if v.modified: " (modified)" else: "")
-  else: line = "New document" & (if v.modified: " (not saved)" else: "")
-  v.status.caption = line & "   ·   tool: " & $v.tool
+  elif v.path.len > 0: line = extractFilename(v.path) & (if v.modified: " (modifié)" else: "")
+  else: line = "Nouveau document" & (if v.modified: " (non enregistré)" else: "")
+  v.status.caption = line & "   ·   outil : " & $v.tool
+
+method scrollTrackTo*(pv: PdfPageView, vertical: bool, pos: float) =
+  if vertical: pv.scrollY = max(0.0, pos)
 
 method onMouse*(pv: PdfPageView, e: MouseEvent) =
   let v = pv.viewer
@@ -1139,29 +1149,29 @@ proc newPdfViewer*(): PdfViewer =
         if it.cmd in ["select", "hand", "text", "note", "rectangle"]: v.toolButtons.add b
     discard v.addChild(result)
   let tb1 = v.bar([("Open", "open", "Open a PDF (Cmd/Ctrl+O)"), ("Save", "save", "Save (Cmd/Ctrl+S)"),
-                   ("Save As", "saveAs", "Save under another name"), ("New", "new", "New blank document"),
-                   ("|", "|", ""),
-                   ("|<", "first", "First page"), ("<", "prev", "Previous page"), (">", "next", "Next page"),
-                   (">|", "last", "Last page"), ("|", "|", ""),
-                   ("-", "zoomOut", "Zoom out (Cmd/Ctrl+-)"), ("+", "zoomIn", "Zoom in (Cmd/Ctrl++)"),
-                   ("Fit width", "fitWidth", "Fit the page width"), ("Fit page", "fitPage", "Whole page"),
-                   ("100 %", "actual", "Actual size"), ("|", "|", ""),
-                   ("Find", "find", "Search the text (Cmd/Ctrl+F, F3 = next)"), ("Info", "info", "Document information"),
-                   ("Sidebar", "sidebar", "Show / hide thumbnails and outline")])
+                    ("Save As", "saveAs", "Save under another name"), ("New", "new", "New blank document"),
+                    ("|", "|", ""),
+                    ("|<", "first", "First page"), ("<", "prev", "Previous page"), (">", "next", "Next page"),
+                    (">|", "last", "Last page"), ("|", "|", ""),
+                    ("-", "zoomOut", "Zoom out (Cmd/Ctrl+-)"), ("+", "zoomIn", "Zoom in (Cmd/Ctrl++)"),
+                    ("Fit width", "fitWidth", "Fit the page width"), ("Fit page", "fitPage", "Whole page"),
+                    ("100 %", "actual", "Actual size"), ("|", "|", ""),
+                    ("Find", "find", "Search the text (Cmd/Ctrl+F, F3 = next)"), ("Info", "info", "Document information"),
+                    ("Sidebar", "sidebar", "Show / hide thumbnails and outline")])
   let pb = tb1.addChild(newToolButton(v, "0 / 0", "goto", "Go to page (F2)"))
   v.pageButton = pb
   let zl = tb1.addChild(newLabel("100 %"))
   v.zoomLabel = zl
   discard v.bar([("Select", "select", "Select and copy text (Cmd/Ctrl+C)"), ("Hand", "hand", "Pan the pages"),
-                 ("|", "|", ""),
-                 ("Add text", "text", "Click on a page to add text"),
-                 ("Note", "note", "Click on a page to add a note"),
-                 ("Rectangle", "rectangle", "Drag on a page to draw a rectangle"),
-                 ("Highlight", "highlight", "Highlight the selected text"), ("|", "|", ""),
-                 ("Rotate", "rotate", "Rotate the current page 90°"), ("Delete page", "delete", "Delete the current page"),
-                 ("Page up", "up", "Move the current page up"), ("Page down", "down", "Move the current page down"),
-                 ("Blank page", "blank", "Insert a blank page after the current one"),
-                 ("Insert PDF…", "insert", "Merge pages of another PDF at a chosen position")])
+                  ("|", "|", ""),
+                  ("Add text", "text", "Click on a page to add text"),
+                  ("Note", "note", "Click on a page to add a note"),
+                  ("Rectangle", "rectangle", "Drag on a page to draw a rectangle"),
+                  ("Highlight", "highlight", "Highlight the selected text"), ("|", "|", ""),
+                  ("Rotate", "rotate", "Rotate the current page 90°"), ("Delete page", "delete", "Delete the current page"),
+                  ("Page up", "up", "Move the current page up"), ("Page down", "down", "Move the current page down"),
+                  ("Blank page", "blank", "Insert a blank page after the current one"),
+                  ("Insert PDF…", "insert", "Merge pages of another PDF at a chosen position")])
   for b in v.toolButtons: b.isDefault = b.cmd == "select"
   let st = v.addChild(newLabel(""))
   st.dock = dkBottom
@@ -1188,7 +1198,7 @@ proc newPdfViewer*(): PdfViewer =
 
 
 method dispose*(v: PdfViewer) =
-  ## Document PDFium et pages rendues.
+  # Document PDFium et pages rendues.
   withLock pdfLock:
     v.jobs.setLen(0)
     v.closeDoc()

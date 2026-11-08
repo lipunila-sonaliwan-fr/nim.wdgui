@@ -16,7 +16,7 @@
 #   mv.id.value = "…"   # remplace le contenu (et remonte en haut)
 #   mv.appendMarkdown("- nouvelle ligne"); mv.scrollToEnd()   # sous le verrou (guarded)
 import std/[strutils, unicode, tables, os, math]
-import ../sdl3, colors_themes, drawing, core, controls_basic
+import ../sdl3, ../wdgpath, colors_themes, drawing, core, controls_basic
 
 type
   MdFont = enum
@@ -74,9 +74,7 @@ const
   EscapableChars = {'!' .. '/', ':' .. '@', '[' .. '`', '{' .. '~'}
 
 proc monoFonts(): seq[string] =
-  var env = getEnv("WDGUI_PATH")
-  env = if env.len > 0 and dirExists(env): env else: "."
-  env &= "/ttf/DejaVuSansMono.ttf"
+  var env = wdguiBase("ttf/DejaVuSansMono.ttf") & "/ttf/DejaVuSansMono.ttf"
   return @[ env,
             "/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc",
             "/System/Library/Fonts/Monaco.ttf",
@@ -153,7 +151,7 @@ proc parseBlocks(src: string): seq[MdBlock] =
       while i < lines.len and not lines[i].strip().startsWith(fence):
         b.lines.add lines[i].replace("\t", "    ")
         inc i
-      inc i                      # closing.
+      inc i   # closing
       result.add b
       continue
     if t.len == 0:
@@ -699,8 +697,7 @@ method draw*(v: MarkdownView, d: Drawing, t: Theme) =
   let key = $z.w & "|" & $z.h & "|" & v.fontKey & "|" & t.name & "|" & $t.dark
   if key != v.layoutKey:
     v.layoutKey = key
-    v.layout(d, t, z.w)
-    if v.overflows: v.layout(d, t, z.w - BarW - 4)   # space reserved for the elevator.
+    v.layout(d, t, z.w - BarW - 4)   # space reserved for the elevator (always displayed).
   if v.pendingEnd:
     v.scrollY = v.maxScroll
     v.pendingEnd = false
@@ -718,13 +715,12 @@ method draw*(v: MarkdownView, d: Drawing, t: Theme) =
     of opDot: d.fillCircle(ox + op.x, oy + op.y, op.w, op.color)
     of opRing: d.strokeCircle(ox + op.x, oy + op.y, op.w + 0.5, op.color, 1.2)
   d.popClip()
-  if v.overflows:
-    let tr = v.barTrack
-    let th = v.barThumb
-    let hot = v.draggingBar or (v.hovered and v.hoverBar)
-    d.fillRoundRect(tr, BarW / 2, withAlpha(t.textSecondary, if hot: 40 else: 22))
-    d.fillRoundRect(th.shrink(1, 0), (BarW - 2) / 2,
-                    withAlpha(t.textSecondary, if v.draggingBar: 210 elif hot: 170 else: 120))
+  v.drawScrollBar(d, t, v.barTrack, v.contentH, v.viewH, v.scrollY)
+
+method scrollTrackTo*(v: MarkdownView, vertical: bool, pos: float) =
+  if vertical:
+    v.pendingEnd = false
+    v.scrollY = clamp(pos, 0.0, v.maxScroll)
 
 method mouseCursor*(v: MarkdownView, x, y: float): int =
   if v.linkAt(x, y).len > 0: SDL_SYSTEM_CURSOR_POINTER else: SDL_SYSTEM_CURSOR_DEFAULT

@@ -37,7 +37,7 @@ type
     lastActivity: uint64
 
 const
-  barSpace = 15.0        # thickness of an "Always" bar.
+  barSpace = 12.0        # thickness of an "Always" bar.
   overlaySpace = 14.0    # hover area of an "Automatic" (overlay) bar.
   minThumb = 18.0
   showDelay = 900'u64    # automatic mode: fully visible for this long after activity.
@@ -63,7 +63,7 @@ proc computeBars(p: Panel) =
   var needV = p.contentH > r.h + 0.5
   let needH = p.contentW > r.w - (if needV: space else: 0.0) + 0.5
   if needH and not needV: needV = p.contentH > r.h - space + 0.5
-  p.showV = needV and p.scrollbars != smHidden
+  p.showV = (needV or p.scrollbars == smAlways) and p.scrollbars != smHidden   # vertical: always displayed in smAlways mode
   p.showH = needH and p.scrollbars != smHidden
   p.viewport = rect(r.x, r.y,
                     max(0.0, r.w - (if p.showV: space else: 0.0)),

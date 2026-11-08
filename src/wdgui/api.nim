@@ -164,6 +164,37 @@ proc `theme=`*(winId: ControlId, t: Theme) =
   # Changes a window's look & feel on the fly.
   withControl(winId, Window, f): f.theme = t
 
+proc applyThemeToAll*(t: Theme, keepDensity = true) =
+  # Apply a theme (light / dark, font) to all open application windows.
+  # keepDensity: each window retains its own margins, spacing, and heights.
+  guarded:
+    for f in allWindows:
+      if f.closed: continue
+      var nt = t
+      if keepDensity:
+        nt.margin = f.theme.margin
+        nt.spacing = f.theme.spacing
+      f.theme = nt
+      f.dirty = true
+  wakeUI()
+
+proc windowIds*(): seq[ControlId] =
+  # Application windows (open or in the process of opening).
+  guarded:
+    for f in allWindows:
+      if not f.closed: result.add f.id
+
+proc setWindowState*(winId: ControlId, s: WindowState) =
+  # Enlarges, minimizes (to the Dock / taskbar), restores, or switches to full screen
+  # (thread-safe; applied by the interface loop, even before opening).
+  withControl(winId, Window, f):
+    f.stateRequest = s
+    f.stateRequested = true
+  wakeUI()
+
+proc windowState*(winId: ControlId): WindowState =
+  readControl(winId, Window, f): result = currentWindowState(f)
+
 proc closeWindow*(winId: ControlId) =
   # Closes (Close) a window.
   withControl(winId, Window, f): f.closeRequested = true
@@ -407,6 +438,28 @@ proc treeSelectPlus*(id: ControlId, path: string) =
       while p != nil:
         p.expanded = true
         p = p.parent
+
+proc treeSetIcon*(id: ControlId, path: string, icon: string, color = Color(r: 0, g: 0, b: 0, a: 0)) =
+  # Symbole (icons.nim) affiché devant le libellé d'un nœud (couleur alpha 0 : texte secondaire).
+  withControl(id, TreeView, a):
+    let n = a.findPath(path)
+    if n != nil:
+      n.icon = icon
+      n.iconColor = color
+
+proc treeSetLock*(id: ControlId, path: string, locked: bool) =
+  # Cadenas fermé à gauche du libellé (ex. fichier ouvert dans l'éditeur).
+  withControl(id, TreeView, a):
+    let n = a.findPath(path)
+    if n != nil: n.locked = locked
+
+proc treeLeafPaths*(id: ControlId): seq[string] =
+  # Chemins de toutes les feuilles (TreeSep).
+  readControl(id, TreeView, a):
+    proc walk(n: TreeNode, acc: var seq[string]) =
+      if n.children.len == 0: acc.add pathOf(n)
+      for c in n.children: walk(c, acc)
+    for r in a.roots: walk(r, result)
 
 proc treeCount*(id: ControlId): int =
   readControl(id, TreeView, a): result = a.visibleNodes.len

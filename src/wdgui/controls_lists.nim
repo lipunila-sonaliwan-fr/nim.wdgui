@@ -2,7 +2,7 @@
 # List-type controls: List Box, Combo Box, Table, TreeView, Looper, Menu (menu bar)
 # and the popup list used by combo boxes, menus and context menus.
 import std/[math, strutils, sequtils, algorithm]
-import ../sdl3, core, controls_basic
+import ../sdl3, core, controls_basic, icons
 
 # Popup list
 
@@ -178,7 +178,7 @@ proc newListBox*(elements: openArray[string] = [], multiSelection = false): List
 
 proc listVisibleCount(l: ListBox, t: Theme): int = max(1, int((l.rect.h - 4) / t.lineHeight))
 
-proc barArea(l: ListBox): Rect = rect(l.rect.x + l.rect.w - 10, l.rect.y + 2, 8, l.rect.h - 4)
+proc barArea(l: ListBox): Rect = vBarArea(l.rect.shrink(1))
 
 proc ensureVisible(l: ListBox, t: Theme) =
   let v = l.listVisibleCount(t)
@@ -208,12 +208,16 @@ method draw*(l: ListBox, d: Drawing, t: Theme) =
   let overflows = l.elements.len > v
   d.pushClip(z)
   for i in l.scroll ..< min(l.elements.len, l.scroll + v + 1):
-    let rr = rect(z.x + 2, z.y + float(i - l.scroll) * lh, z.w - 4 - (if overflows: 10.0 else: 0.0), lh)
+    let rr = rect(z.x + 2, z.y + float(i - l.scroll) * lh, z.w - 4 - ScrollBarSize, lh)
     var col = textColor(l, t)
     if l.selections[i]: col = drawSelectedRow(d, t, l, rr)
     d.textIn(rr, l.elements[i], col, alLeft, 10)
   d.popClip()
-  drawScrollIndicator(d, t, l.barArea, float(l.elements.len), float(v), float(l.scroll))
+  discard overflows
+  l.drawScrollBar(d, t, l.barArea, float(l.elements.len), float(v), float(l.scroll))
+
+method scrollTrackTo*(l: ListBox, vertical: bool, pos: float) =
+  if vertical: l.scroll = max(0, int(round(pos)))
 
 method onMouse*(l: ListBox, e: MouseEvent) =
   let t = l.win.theme
@@ -458,8 +462,14 @@ method draw*(tb: TableControl, d: Drawing, t: Theme) =
       cx += c.width
   d.popClip()
   d.popClip()
-  drawScrollIndicator(d, t, rect(tb.rect.x + tb.rect.w - 10, z.y + he, 8, z.h - he),
-                    float(tb.rows.len), float(v), float(tb.scroll))
+  let vw = tb.rect.w - 4 - ScrollBarSize - 1
+  tb.drawScrollBar(d, t, rect(tb.rect.x + tb.rect.w - ScrollBarSize - 2, z.y + he, ScrollBarSize, z.h - he),
+                   float(tb.rows.len), float(v), float(tb.scroll))
+  tb.drawScrollBar(d, t, hBarArea(tb.rect.shrink(1)), tb.totalWidth, vw, tb.scrollX, vertical = false)
+
+method scrollTrackTo*(tb: TableControl, vertical: bool, pos: float) =
+  if vertical: tb.scroll = max(0, int(round(pos)))
+  else: tb.scrollX = max(0.0, pos)
 
 proc columnEdgeAt(tb: TableControl, x: float): int =
   var cx = tb.rect.x + 2 - tb.scrollX
@@ -545,6 +555,9 @@ const TreeSep* = "\t"   # path separator ( TAB, Habit formed with a French IDE ;
 type
   TreeNode* = ref object
     caption*: string
+    icon*: string           # symbole vectoriel devant le libellé ("" : aucun).
+    iconColor*: Color       # alpha 0 : couleur secondaire du thème.
+    locked*: bool           # cadenas fermé à gauche (ex. fichier ouvert).
     children*: seq[TreeNode]
     expanded*: bool
     parent*: TreeNode
@@ -654,9 +667,22 @@ method draw*(a: TreeView, d: Drawing, t: Theme) =
     if n.children.len > 0:
       d.triangle(x + 5, y + lh / 2, 8, (if n.expanded: 'v' else: '>'),
                  if n == a.selection and t.accentSelection: col else: t.textSecondary)
-    d.textIn(rect(x + 16, y, max(0.0, lr.x + lr.w - x - 16), lh), n.caption, col)
+    var tx = x + 16
+    if n.locked:
+      d.drawIcon("cadenas", rect(tx, y + (lh - 12) / 2, 12, 12),
+                 if n == a.selection and t.accentSelection: col else: hex"#D97706")
+      tx += 15
+    if n.icon.len > 0:
+      let ic = if n == a.selection and t.accentSelection: col
+               elif n.iconColor.a == 0: t.textSecondary else: n.iconColor
+      d.drawIcon(n.icon, rect(tx, y + (lh - 14) / 2, 14, 14), ic)
+      tx += 18
+    d.textIn(rect(tx, y, max(0.0, lr.x + lr.w - tx), lh), n.caption, col)
   d.popClip()
-  drawScrollIndicator(d, t, rect(a.rect.x + a.rect.w - 10, z.y, 8, z.h), float(vis.len), float(nv), float(a.scroll))
+  a.drawScrollBar(d, t, vBarArea(a.rect.shrink(1)), float(vis.len), float(nv), float(a.scroll))
+
+method scrollTrackTo*(a: TreeView, vertical: bool, pos: float) =
+  if vertical: a.scroll = max(0, int(round(pos)))
 
 method onMouse*(a: TreeView, e: MouseEvent) =
   if e.action != maPress: return
