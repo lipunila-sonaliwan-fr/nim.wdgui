@@ -683,7 +683,7 @@ proc arrowArea(c: Spin): Rect = rect(c.rect.x + c.rect.w - 23, c.rect.y + 2, 21,
 
 method typeName*(c: Spin): string = "Spin"
 
-method preferredSize*(c: Spin, d: Drawing, t: Theme): tuple[w, h: float] = (120.0, t.controlHeight)
+method preferredSize*(c: Spin, d: Drawing, t: Theme): tuple[w, h: float] = (102.0, t.controlHeight)
 
 method valueNum*(c: Spin): float = c.readValue
 
