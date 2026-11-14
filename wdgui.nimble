@@ -27,9 +27,9 @@ task wdnim, "Build and run wdnim, the Nim editor example application":
 task pdf, "Build and run the PDF viewer / editor demo":
   exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf examples/pdf_demo.nim"
 
-#task wdreka, "Build and run wdreka, the visual CP-SAT constraint editor (apps/wdreka)":
-##exec "nim c -r --threads:on --mm:atomicArc --app:gui -d:sdlttf -d:sdlimage -d:release -o:apps/wdreka/wdreka apps/wdreka/wdreka.nim"
-# exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf -o:apps/wdreka/wdreka apps/wdreka/wdreka.nim"
+task wdreka, "Build and run wdreka, the visual CP-SAT constraint editor (apps/wdreka)":
+# exec "nim c -r --threads:on --mm:atomicArc --app:gui -d:sdlttf -d:sdlimage -d:release -o:apps/wdreka/wdreka apps/wdreka/wdreka.nim"
+  exec "nim c -r --threads:on --mm:atomicArc -d:sdlttf -o:apps/wdreka/wdreka apps/wdreka/wdreka.nim"
 
 task wdnotes, "Hierarchical, linked, and formatted Markdown notes":
 # exec "nim c -r --threads:on --mm:atomicArc --app:gui -d:sdlttf -d:sdlimage -d:release -o:apps/wdnotes/wdnotes apps/wdnotes/wdnotes.nim"

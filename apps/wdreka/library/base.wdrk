@@ -1,0 +1,487 @@
+# CC BY-NC-SA 4.0 - jean-marc "jihem" quere 2026
+#=
+# wdreka - base library (loaded at startup)
+#=
+# Each component describes its parameters, its typed inputs / outputs and
+# the NCP (CP-SAT) code template it generates. See README.md, § Library.
+#
+# Port types: task, usage, flow (stock flow), time (schedule),
+#             agent, stock, int (integer), bool (boolean), any.
+# Naming conventions (prefix = <node>_<output>):
+#   task  : _s start, _d duration, _e end
+#   usage : _s start, _d duration, _q quantity
+#   flow  : _t time, _dq stock change (+ production, - consumption)
+#   time  : _a array of window starts, _b array of window ends
+#   int / bool : the prefix is the value itself
+#
+
+# Schedules
+
+[composant horaire]
+libelle   = Time windows
+categorie = Schedules
+couleur   = #27AE60
+glyphe    = H
+doc       = Availabilities as windows [start, end[ expressed in the time unit of the document.
+param   debuts | expr | [8, 14] | Window starts
+param   fins   | expr | [12, 18] | Window ends
+sortie  h | time | Schedule
+code <<<
+const {{id}}_h_a = {{p:debuts}};
+const {{id}}_h_b = {{p:fins}};
+>>>
+
+[composant horaire_jours]
+libelle   = Daily schedule
+categorie = Schedules
+couleur   = #27AE60
+glyphe    = J
+doc       = The same window repeated every day (period in time units, 24 if the unit is the hour).
+param   jours   | int | 2  | Number of days
+param   debut   | int | 8  | Window start
+param   fin     | int | 17 | Window end
+param   periode | int | 24 | Period
+sortie  h | time | Schedule
+code <<<
+const {{id}}_h_a = [j * {{p:periode}} + {{p:debut}} | j in 0..{{p:jours}} - 1];
+const {{id}}_h_b = [j * {{p:periode}} + {{p:fin}} | j in 0..{{p:jours}} - 1];
+>>>
+
+# Tasks
+
+[composant tache]
+libelle   = Task
+categorie = Tasks
+couleur   = #4F8EF7
+glyphe    = T
+doc       = Fixed-duration activity. "After" input: tasks that must be finished before it starts. "Schedule" input: the task must fit within a window.
+param   duree     | expr | 2       | Duration
+param   debut_min | expr | 0       | Earliest start
+param   echeance  | expr | HORIZON | Latest end
+entrees apres   | task | After
+entree  horaire | time | Schedule
+sortie  task | task | Task
+code <<<
+var {{id}}_task_s : {{p:debut_min}}..HORIZON;
+let {{id}}_task_d = {{p:duree}};
+let {{id}}_task_e = {{id}}_task_s + {{id}}_task_d;
+constraint {{id}}_task_e <= {{p:echeance}};
+{{if:apres}}let {{id}}_pred = [{{list:apres:_e}}];
+constraint forall(i in 0..length({{id}}_pred) - 1)({{id}}_pred[i] <= {{id}}_task_s);
+{{fi}}{{if:horaire}}constraint windows([{{id}}_task_s], [{{id}}_task_d], {{in:horaire}}_a, {{in:horaire}}_b);
+{{fi}}
+>>>
+
+[composant tache_variable]
+libelle   = Variable-duration task
+categorie = Tasks
+couleur   = #4F8EF7
+glyphe    = V
+doc       = Activity whose duration is chosen by the solver between a minimum and a maximum.
+param   dmin      | int  | 1       | Minimum duration
+param   dmax      | int  | 4       | Maximum duration
+param   debut_min | expr | 0       | Earliest start
+param   echeance  | expr | HORIZON | Latest end
+entrees apres   | task | After
+entree  horaire | time | Schedule
+sortie  task | task | Task
+code <<<
+var {{id}}_task_s : {{p:debut_min}}..HORIZON;
+var {{id}}_task_d : {{p:dmin}}..{{p:dmax}};
+let {{id}}_task_e = {{id}}_task_s + {{id}}_task_d;
+constraint {{id}}_task_e <= {{p:echeance}};
+{{if:apres}}let {{id}}_pred = [{{list:apres:_e}}];
+constraint forall(i in 0..length({{id}}_pred) - 1)({{id}}_pred[i] <= {{id}}_task_s);
+{{fi}}{{if:horaire}}constraint windows([{{id}}_task_s], [{{id}}_task_d], {{in:horaire}}_a, {{in:horaire}}_b);
+{{fi}}
+>>>
+
+[composant precedence]
+libelle   = Precedence
+categorie = Tasks
+couleur   = #2D9CDB
+glyphe    = >
+doc       = "Before" must be finished (plus an optional delay) before "After" starts.
+param   delai | expr | 0 | Minimum delay
+entree  avant | task | Before
+entree  apres | task | After
+code <<<
+constraint {{in:avant}}_e + {{p:delai}} <= {{in:apres}}_s;
+>>>
+
+[composant non_chevauchement]
+libelle   = No overlap
+categorie = Tasks
+couleur   = #2D9CDB
+glyphe    = X
+doc       = The linked tasks never run at the same time (unary resource).
+entrees taches | task | Tasks
+code <<<
+constraint disjunctive([{{list:taches:_s}}], [{{list:taches:_d}}]);
+>>>
+
+[composant debut_de]
+libelle   = Start of
+categorie = Tasks
+couleur   = #56CCF2
+glyphe    = s
+entree  tache | task | Task
+sortie  v | int | Start
+code <<<
+let {{id}}_v = {{in:tache}}_s;
+>>>
+
+[composant fin_de]
+libelle   = End of
+categorie = Tasks
+couleur   = #56CCF2
+glyphe    = e
+entree  tache | task | Task
+sortie  v | int | End
+code <<<
+let {{id}}_v = {{in:tache}}_e;
+>>>
+
+# Agents (equipment, staff)
+
+[composant utilise]
+libelle   = Uses
+categorie = Agents
+couleur   = #F2994A
+glyphe    = U
+doc       = The task uses "quantity" units of an agent or a place during its whole duration.
+param   quantite | expr | 1 | Quantity
+entree  tache | task | Task
+sortie  u | usage | Usage
+code <<<
+let {{id}}_u_s = {{in:tache}}_s;
+let {{id}}_u_d = {{in:tache}}_d;
+let {{id}}_u_q = {{p:quantite}};
+>>>
+
+[composant personnel]
+libelle   = Staff
+categorie = Agents
+couleur   = #9B7BFF
+glyphe    = P
+doc       = Team of "headcount" people. The linked usages never exceed the headcount and respect the optional schedule.
+param   effectif | int | 2 | Headcount
+entrees usages  | usage | Usages
+entree  horaire | time  | Schedule
+code <<<
+const {{id}}_cap = {{p:effectif}};
+constraint cumulative([{{list:usages:_s}}], [{{list:usages:_d}}], [{{list:usages:_q}}], {{id}}_cap);
+{{if:horaire}}constraint windows([{{list:usages:_s}}], [{{list:usages:_d}}], {{in:horaire}}_a, {{in:horaire}}_b);
+{{fi}}
+>>>
+
+[composant equipement]
+libelle   = Equipment
+categorie = Agents
+couleur   = #BB6BD9
+glyphe    = E
+doc       = Machine or tool available in "number" units, with an optional opening schedule.
+param   nombre | int | 1 | Number of units
+entrees usages  | usage | Usages
+entree  horaire | time  | Schedule
+code <<<
+const {{id}}_cap = {{p:nombre}};
+constraint cumulative([{{list:usages:_s}}], [{{list:usages:_d}}], [{{list:usages:_q}}], {{id}}_cap);
+{{if:horaire}}constraint windows([{{list:usages:_s}}], [{{list:usages:_d}}], {{in:horaire}}_a, {{in:horaire}}_b);
+{{fi}}
+>>>
+
+# Resources (material, places, consumables)
+
+[composant lieu]
+libelle   = Place
+categorie = Resources
+couleur   = #F2C94C
+glyphe    = L
+doc       = Room, dock, area... with a limited capacity (number of simultaneous occupants).
+param   capacite | int | 1 | Capacity
+entrees usages  | usage | Occupations
+entree  horaire | time  | Opening schedule
+code <<<
+const {{id}}_cap = {{p:capacite}};
+constraint cumulative([{{list:usages:_s}}], [{{list:usages:_d}}], [{{list:usages:_q}}], {{id}}_cap);
+{{if:horaire}}constraint windows([{{list:usages:_s}}], [{{list:usages:_d}}], {{in:horaire}}_a, {{in:horaire}}_b);
+{{fi}}
+>>>
+
+[composant produit]
+libelle   = Produces
+categorie = Resources
+couleur   = #6FCF97
+glyphe    = +
+doc       = At the end of the task, "quantity" units are added to the linked stock.
+param   quantite | expr | 1 | Quantity produced
+entree  tache | task | Task
+sortie  f | flow | Flow
+code <<<
+let {{id}}_f_t = {{in:tache}}_e;
+let {{id}}_f_dq = {{p:quantite}};
+>>>
+
+[composant consomme]
+libelle   = Consumes
+categorie = Resources
+couleur   = #E86AF0
+glyphe    = -
+doc       = At the start of the task, "quantity" units are removed from the linked stock.
+param   quantite | expr | 1 | Quantity consumed
+entree  tache | task | Task
+sortie  f | flow | Flow
+code <<<
+let {{id}}_f_t = {{in:tache}}_s;
+let {{id}}_f_dq = -({{p:quantite}});
+>>>
+
+[composant matiere]
+libelle   = Material (stock)
+categorie = Resources
+couleur   = #F2C94C
+glyphe    = M
+doc       = Material stock: initial level, produced and consumed by the tasks, always between min and max.
+param   initial | int | 0  | Initial stock
+param   min     | int | 0  | Minimum stock
+param   max     | int | 10 | Maximum stock
+entrees flux | flow | Flows
+code <<<
+constraint reservoir([{{list:flux:_t}}], [{{list:flux:_dq}}], {{p:initial}}, {{p:min}}, {{p:max}});
+>>>
+
+[composant consommable]
+libelle   = Consumable
+categorie = Resources
+couleur   = #F2994A
+glyphe    = C
+doc       = Stock that is only consumed (supplies, energy...): it must never become negative.
+param   initial | int | 10 | Available quantity
+entrees flux | flow | Consumptions
+code <<<
+constraint reservoir([{{list:flux:_t}}], [{{list:flux:_dq}}], {{p:initial}}, 0, {{p:initial}} + 1000000);
+>>>
+
+# Logic
+
+[composant contrainte]
+libelle   = Constraint
+categorie = Logic
+couleur   = #EB5757
+glyphe    = !
+doc       = Forces the linked condition to be true.
+entree  c | bool | Condition
+code <<<
+constraint {{in:c}};
+>>>
+
+[composant comparaison]
+libelle   = Comparison
+categorie = Logic
+couleur   = #EB5757
+glyphe    = <
+doc       = Compares two integers: operator among ==, !=, <, <=, >, >=.
+param   op | expr | <= | Operator
+entree  a | int | A
+entree  b | int | B
+sortie  r | bool | Result
+code <<<
+let {{id}}_r = {{in:a}} {{p:op}} {{in:b}};
+>>>
+
+[composant et]
+libelle   = AND
+categorie = Logic
+couleur   = #EB5757
+glyphe    = &
+entrees termes | bool | Terms
+sortie  r | bool | Result
+code <<<
+let {{id}}_r = forall(i in 0..{{count:termes}} - 1)([{{list:termes}}][i]);
+>>>
+
+[composant ou]
+libelle   = OR
+categorie = Logic
+couleur   = #EB5757
+glyphe    = |
+entrees termes | bool | Terms
+sortie  r | bool | Result
+code <<<
+let {{id}}_r = exists(i in 0..{{count:termes}} - 1)([{{list:termes}}][i]);
+>>>
+
+[composant non]
+libelle   = NOT
+categorie = Logic
+couleur   = #EB5757
+glyphe    = ~
+entree  a | bool | A
+sortie  r | bool | Result
+code <<<
+let {{id}}_r = not {{in:a}};
+>>>
+
+[composant implique]
+libelle   = Implies
+categorie = Logic
+couleur   = #EB5757
+glyphe    = ⇒
+entree  si    | bool | If
+entree  alors | bool | Then
+sortie  r | bool | Result
+code <<<
+let {{id}}_r = {{in:si}} -> {{in:alors}};
+>>>
+
+# Arithmetic
+
+[composant constante]
+libelle   = Constant
+categorie = Arithmetic
+couleur   = #56CCF2
+glyphe    = #
+param   valeur | expr | 0 | Value
+sortie  v | int | Value
+code <<<
+let {{id}}_v = {{p:valeur}};
+>>>
+
+[composant variable]
+libelle   = Integer variable
+categorie = Arithmetic
+couleur   = #56CCF2
+glyphe    = x
+param   min | expr | 0  | Minimum
+param   max | expr | 10 | Maximum
+sortie  v | int | Value
+code <<<
+var {{id}}_v : {{p:min}}..{{p:max}};
+>>>
+
+[composant somme]
+libelle   = Sum
+categorie = Arithmetic
+couleur   = #56CCF2
+glyphe    = S
+entrees termes | int | Terms
+sortie  v | int | Sum
+code <<<
+let {{id}}_v = sum([{{list:termes}}]);
+>>>
+
+[composant maximum]
+libelle   = Maximum
+categorie = Arithmetic
+couleur   = #56CCF2
+glyphe    = ^
+entrees termes | int | Terms
+sortie  v | int | Maximum
+code <<<
+let {{id}}_v = max([{{list:termes}}]);
+>>>
+
+[composant expression]
+libelle   = Expression
+categorie = Arithmetic
+couleur   = #56CCF2
+glyphe    = f
+doc       = Free NCP expression using the inputs a, b, c (e.g. 2*a + b - 3, max(a, b), abs(a - c)).
+param   expr | expr | a + b | Expression
+entree  a | int | a
+entree  b | int | b
+entree  c | int | c
+sortie  v | int | Result
+code <<<
+let {{id}}_v = {{expr:expr}};
+>>>
+
+# Objectives
+
+[composant min_fin]
+libelle   = Minimize the end
+categorie = Objectives
+couleur   = #F2C94C
+glyphe    = ↓
+doc       = Minimizes the end date of the last of the linked tasks (makespan).
+entrees taches | task | Tasks
+code <<<
+solve minimize max([{{list:taches:_e}}]);
+>>>
+
+[composant min_somme_fins]
+libelle   = Minimize the sum of ends
+categorie = Objectives
+couleur   = #F2C94C
+glyphe    = Σ
+doc       = Minimizes the sum of the end dates (favours finishing each task early).
+entrees taches | task | Tasks
+code <<<
+solve minimize sum([{{list:taches:_e}}]);
+>>>
+
+[composant minimiser]
+libelle   = Minimize
+categorie = Objectives
+couleur   = #F2C94C
+glyphe    = m
+entree  v | int | Value
+code <<<
+solve minimize {{in:v}};
+>>>
+
+[composant maximiser]
+libelle   = Maximize
+categorie = Objectives
+couleur   = #F2C94C
+glyphe    = M
+entree  v | int | Value
+code <<<
+solve maximize {{in:v}};
+>>>
+
+[composant toutes_solutions]
+libelle   = All solutions
+categorie = Objectives
+couleur   = #F2C94C
+glyphe    = *
+code <<<
+solve all;
+>>>
+
+# Outputs
+
+[composant afficher]
+libelle   = Display
+categorie = Outputs
+couleur   = #BDBDBD
+glyphe    = >
+param   texte | text | value | Label
+entree  v | any | Value
+code <<<
+output "{{p:texte}} = ", {{in:v}}, "\n";
+>>>
+
+[composant afficher_tache]
+libelle   = Display a task
+categorie = Outputs
+couleur   = #BDBDBD
+glyphe    = >
+entree  tache | task | Task
+code <<<
+output "{{titre}}: ", {{in:tache}}_s, " -> ", {{in:tache}}_e, "\n";
+>>>
+
+# Advanced
+
+[composant ncp]
+libelle   = NCP block
+categorie = Advanced
+couleur   = #828282
+glyphe    = {
+doc       = Free NCP code, inserted as is into the model (may use the names of the other nodes).
+param   code | code | // NCP code | Code
+code <<<
+{{p:code}}
+>>>
